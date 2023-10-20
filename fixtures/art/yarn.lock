@@ -1138,14 +1138,14 @@ browserify-zlib@^0.1.4:
     pako "~0.2.0"
 
 browserslist@^4.12.0, browserslist@^4.8.5:
-  version "4.13.0"
-  resolved "https://registry.yarnpkg.com/browserslist/-/browserslist-4.13.0.tgz#42556cba011e1b0a2775b611cba6a8eca18e940d"
-  integrity sha512-MINatJ5ZNrLnQ6blGvePd/QOz9Xtu+Ne+x29iQSCHfkU5BugKVJwZKn/iiL8UbpIpa3JhviKjz+XxMo0m2caFQ==
+  version "4.22.1"
+  resolved "https://registry.yarnpkg.com/browserslist/-/browserslist-4.22.1.tgz#ba91958d1a59b87dab6fed8dfbcb3da5e2e9c619"
+  integrity sha512-FEVc202+2iuClEhZhrWy6ZiAcRLvNMyYcxZ8raemul1DYVOVdFsbqckWLdsixQZCpJlwe77Z3UTalE7jsjnKfQ==
   dependencies:
-    caniuse-lite "^1.0.30001093"
-    electron-to-chromium "^1.3.488"
-    escalade "^3.0.1"
-    node-releases "^1.1.58"
+    caniuse-lite "^1.0.30001541"
+    electron-to-chromium "^1.4.535"
+    node-releases "^2.0.13"
+    update-browserslist-db "^1.0.13"
 
 buffer-shims@^1.0.0:
   version "1.0.0"
@@ -1167,10 +1167,10 @@ camelcase@^1.0.2:
   version "1.2.1"
   resolved "https://registry.yarnpkg.com/camelcase/-/camelcase-1.2.1.tgz#9bb5304d2e0b56698b2c758b08a3eaa9daa58a39"
 
-caniuse-lite@^1.0.30001093:
-  version "1.0.30001105"
-  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30001105.tgz#d2cb0b31e5cf2f3ce845033b61c5c01566549abf"
-  integrity sha512-JupOe6+dGMr7E20siZHIZQwYqrllxotAhiaej96y6x00b/48rPt42o+SzOSCPbrpsDWvRja40Hwrj0g0q6LZJg==
+caniuse-lite@^1.0.30001541:
+  version "1.0.30001551"
+  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30001551.tgz#1f2cfa8820bd97c971a57349d7fd8f6e08664a3e"
+  integrity sha512-vtBAez47BoGMMzlbYhfXrMV1kvRF2WP/lqiMuDu1Sb4EE4LKEgjopFDSRtZfdVnslNRpOqV/woE+Xgrwj6VQlg==
 
 caseless@~0.12.0:
   version "0.12.0"
@@ -1357,10 +1357,10 @@ ecc-jsbn@~0.1.1:
   dependencies:
     jsbn "~0.1.0"
 
-electron-to-chromium@^1.3.488:
-  version "1.3.505"
-  resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.3.505.tgz#0e55edbdfc13700b6742a73c81c0af7d0d71364f"
-  integrity sha512-Aunrp3HWtmdiJLIl+IPSFtEvJ/4Q9a3eKaxmzCthaZF1gbTbpHUTCU2zOVnFPH7r/AD7zQXyuFidYXzSHXBdsw==
+electron-to-chromium@^1.4.535:
+  version "1.4.560"
+  resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.560.tgz#f251409f1e8f393d0dfdf9ccb0b39de739a06a17"
+  integrity sha512-HhJH/pWAxTaPZl7R3mJ6gCd8MfjQdil9RAWk84qHaLsmPTadydfAmq0a1x8kZtOGQ6pZrWhOYj5uZ8I0meZIgg==
 
 emojis-list@^2.0.0:
   version "2.1.0"
@@ -1385,10 +1385,10 @@ errno@^0.1.3:
   dependencies:
     prr "~0.0.0"
 
-escalade@^3.0.1:
-  version "3.0.2"
-  resolved "https://registry.yarnpkg.com/escalade/-/escalade-3.0.2.tgz#6a580d70edb87880f22b4c91d0d56078df6962c4"
-  integrity sha512-gPYAU37hYCUhW5euPeR+Y74F7BL+IBsV93j5cvGriSaD1aG6MGsqsV1yamRdrWrb2j3aiZvb0X+UBOWpx3JWtQ==
+escalade@^3.1.1:
+  version "3.1.1"
+  resolved "https://registry.yarnpkg.com/escalade/-/escalade-3.1.1.tgz#d8cfdc7000965c5a0174b4a82eaa5c0552742e40"
+  integrity sha512-k0er2gUkLf8O0zKJiAhmkTnJlTvINGv7ygDNPbeIsX/TJjGJZHuh9B2UxbsaEkmlEo9MfhrSzmhIlhRlI2GXnw==
 
 escape-string-regexp@^1.0.5:
   version "1.0.5"
@@ -2031,10 +2031,10 @@ node-pre-gyp@^0.6.29:
     tar "^2.2.1"
     tar-pack "^3.4.0"
 
-node-releases@^1.1.58:
-  version "1.1.60"
-  resolved "https://registry.yarnpkg.com/node-releases/-/node-releases-1.1.60.tgz#6948bdfce8286f0b5d0e5a88e8384e954dfe7084"
-  integrity sha512-gsO4vjEdQaTusZAEebUWp2a5d7dF5DYoIpDG7WySnk7BuZDW+GPpHXoXXuYawRBr/9t5q54tirPz79kFIWg4dA==
+node-releases@^2.0.13:
+  version "2.0.13"
+  resolved "https://registry.yarnpkg.com/node-releases/-/node-releases-2.0.13.tgz#d5ed1627c23e3461e819b02e57b75e4899b1c81d"
+  integrity sha512-uYr7J37ae/ORWdZeQ1xxMJe3NtdmqMC/JZK+geofDrkLUApKRHPd18/TxtBOJ4A0/+uUIliorNrfYV6s1b02eQ==
 
 nopt@^4.0.1:
   version "4.0.1"
@@ -2182,6 +2182,11 @@ performance-now@^0.2.0:
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/performance-now/-/performance-now-0.2.0.tgz#33ef30c5c77d4ea21c5a53869d91b56d8f2555e5"
 
+picocolors@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/picocolors/-/picocolors-1.0.0.tgz#cb5bdc74ff3f51892236eaf79d68bc44564ab81c"
+  integrity sha512-1fygroTLlHu66zi26VoTDv8yRgm0Fccecssto+MhsZ0D/DGW2sm8E8AjW7NU5VVTRt5GxbeZ5qBuJr+HyLYkjQ==
+
 pify@^4.0.1:
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/pify/-/pify-4.0.1.tgz#4b2cd25c50d598735c50292224fd8c6df41e3231"
@@ -2253,15 +2258,12 @@ rc@^1.1.7:
 
 "react-art@link:../../build/node_modules/react-art":
   version "0.0.0"
-  uid ""
 
 "react-dom@link:../../build/node_modules/react-dom":
   version "0.0.0"
-  uid ""
 
 "react@link:../../build/node_modules/react":
   version "0.0.0"
-  uid ""
 
 "readable-stream@^2.0.0 || ^1.1.13", readable-stream@^2.0.1, readable-stream@^2.0.2, readable-stream@^2.0.5, readable-stream@^2.1.4, readable-stream@^2.2.6:
   version "2.2.6"
@@ -2679,6 +2681,14 @@ unicode-property-aliases-ecmascript@^1.0.4:
   version "1.0.5"
   resolved "https://registry.yarnpkg.com/unicode-property-aliases-ecmascript/-/unicode-property-aliases-ecmascript-1.0.5.tgz#a9cc6cc7ce63a0a3023fc99e341b94431d405a57"
   integrity sha512-L5RAqCfXqAwR3RriF8pM0lU0w4Ryf/GgzONwi6KnL1taJQa7x1TCxdJnILX59WIGOwR57IVxn7Nej0fz1Ny6fw==
+
+update-browserslist-db@^1.0.13:
+  version "1.0.13"
+  resolved "https://registry.yarnpkg.com/update-browserslist-db/-/update-browserslist-db-1.0.13.tgz#3c5e4f5c083661bd38ef64b6328c26ed6c8248c4"
+  integrity sha512-xebP81SNcPuNpPP3uzeW1NYXxI3rxyJzF3pD6sH4jE7o/IX+WtSpwnVU+qIsDPyk0d3hmFQ7mjqc6AtV604hbg==
+  dependencies:
+    escalade "^3.1.1"
+    picocolors "^1.0.0"
 
 uri-js@^4.2.2:
   version "4.2.2"
