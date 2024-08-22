@@ -1,5 +1,5 @@
 const {resolve} = require('path');
-const {DefinePlugin} = require('webpack');
+const Webpack = require('webpack');
 const {
   GITHUB_URL,
   getVersionString,
@@ -14,7 +14,18 @@ if (!NODE_ENV) {
 
 const __DEV__ = NODE_ENV === 'development';
 
+const EDITOR_URL = process.env.EDITOR_URL || null;
+
 const DEVTOOLS_VERSION = getVersionString();
+
+const babelOptions = {
+  configFile: resolve(
+    __dirname,
+    '..',
+    'react-devtools-shared',
+    'babel.config.js',
+  ),
+};
 
 module.exports = {
   mode: __DEV__ ? 'development' : 'production',
@@ -22,20 +33,26 @@ module.exports = {
   entry: {
     backend: './src/backend.js',
     frontend: './src/frontend.js',
+    hookNames: './src/hookNames.js',
   },
   output: {
     path: __dirname + '/dist',
+    publicPath: '/dist/',
     filename: '[name].js',
-    library: '[name]',
-    libraryTarget: 'commonjs2',
+    chunkFilename: '[name].chunk.js',
+    library: {
+      type: 'commonjs2',
+    },
   },
   externals: {
     react: 'react',
-    // TODO: Once this package is published, remove the external
-    // 'react-debug-tools': 'react-debug-tools',
     'react-dom': 'react-dom',
+    'react-dom/client': 'react-dom/client',
     'react-is': 'react-is',
     scheduler: 'scheduler',
+  },
+  node: {
+    global: false,
   },
   resolve: {
     alias: {
@@ -46,14 +63,24 @@ module.exports = {
     minimize: false,
   },
   plugins: [
-    new DefinePlugin({
+    new Webpack.ProvidePlugin({
+      process: 'process/browser',
+      Buffer: ['buffer', 'Buffer'],
+    }),
+    new Webpack.DefinePlugin({
       __DEV__,
       __EXPERIMENTAL__: true,
       __EXTENSION__: false,
       __PROFILE__: false,
       __TEST__: NODE_ENV === 'test',
+      // TODO: Should this be feature tested somehow?
+      __IS_CHROME__: false,
+      __IS_FIREFOX__: false,
+      __IS_EDGE__: false,
+      __IS_NATIVE__: false,
       'process.env.DEVTOOLS_PACKAGE': `"react-devtools-inline"`,
       'process.env.DEVTOOLS_VERSION': `"${DEVTOOLS_VERSION}"`,
+      'process.env.EDITOR_URL': EDITOR_URL != null ? `"${EDITOR_URL}"` : null,
       'process.env.GITHUB_URL': `"${GITHUB_URL}"`,
       'process.env.NODE_ENV': `"${NODE_ENV}"`,
     }),
@@ -61,16 +88,25 @@ module.exports = {
   module: {
     rules: [
       {
+        test: /\.worker\.js$/,
+        use: [
+          {
+            loader: 'workerize-loader',
+            options: {
+              inline: true,
+              name: '[name]',
+            },
+          },
+          {
+            loader: 'babel-loader',
+            options: babelOptions,
+          },
+        ],
+      },
+      {
         test: /\.js$/,
         loader: 'babel-loader',
-        options: {
-          configFile: resolve(
-            __dirname,
-            '..',
-            'react-devtools-shared',
-            'babel.config.js',
-          ),
-        },
+        options: babelOptions,
       },
       {
         test: /\.css$/,

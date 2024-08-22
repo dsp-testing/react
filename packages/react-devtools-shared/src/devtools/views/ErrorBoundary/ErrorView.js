@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -12,13 +12,13 @@ import Button from '../Button';
 import ButtonIcon from '../ButtonIcon';
 import styles from './shared.css';
 
-type Props = {|
+type Props = {
   callStack: string | null,
   children: React$Node,
   componentStack: string | null,
   dismissError: Function | null,
   errorMessage: string | null,
-|};
+};
 
 export default function ErrorView({
   callStack,
@@ -26,13 +26,13 @@ export default function ErrorView({
   componentStack,
   dismissError = null,
   errorMessage,
-}: Props) {
+}: Props): React.Node {
   return (
     <div className={styles.ErrorBoundary}>
       {children}
       <div className={styles.ErrorInfo}>
         <div className={styles.HeaderRow}>
-          <div className={styles.Header}>
+          <div className={styles.ErrorHeader}>
             Uncaught Error: {errorMessage || ''}
           </div>
           {dismissError !== null && (
@@ -43,12 +43,12 @@ export default function ErrorView({
           )}
         </div>
         {!!callStack && (
-          <div className={styles.Stack}>
+          <div className={styles.ErrorStack}>
             The error was thrown {callStack.trim()}
           </div>
         )}
         {!!componentStack && (
-          <div className={styles.Stack}>
+          <div className={styles.ErrorStack}>
             The error occurred {componentStack.trim()}
           </div>
         )}

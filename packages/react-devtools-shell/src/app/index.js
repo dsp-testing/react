@@ -2,24 +2,24 @@
 
 // This test harness mounts each test app as a separate root to test multi-root applications.
 
+import semver from 'semver';
+
 import {createElement} from 'react';
-import {
-  // $FlowFixMe Flow does not yet know about createRoot()
-  createRoot,
-} from 'react-dom';
+import {createRoot} from 'react-dom/client';
+
 import DeeplyNestedComponents from './DeeplyNestedComponents';
 import Iframe from './Iframe';
 import EditableProps from './EditableProps';
 import ElementTypes from './ElementTypes';
 import Hydration from './Hydration';
-import InlineWarnings from './InlineWarnings';
 import InspectableElements from './InspectableElements';
 import ReactNativeWeb from './ReactNativeWeb';
 import ToDoList from './ToDoList';
 import Toggle from './Toggle';
 import ErrorBoundaries from './ErrorBoundaries';
+import PartiallyStrictApp from './PartiallyStrictApp';
 import SuspenseTree from './SuspenseTree';
-import {ignoreErrors, ignoreWarnings} from './console';
+import {ignoreErrors, ignoreLogs, ignoreWarnings} from './console';
 
 import './styles.css';
 
@@ -30,39 +30,96 @@ ignoreErrors([
   'Warning: Legacy context API',
   'Warning: Unsafe lifecycle methods',
   'Warning: %s is deprecated in StrictMode.', // findDOMNode
+  'Warning: ReactDOM.render was removed in React 19',
+  'Warning: react-test-renderer is deprecated',
+  // Ignore prefixed and not prefixed since I don't know which
+  // React versions are being tested by this code.
+  'Legacy context API',
+  'Unsafe lifecycle methods',
+  '%s is deprecated in StrictMode.', // findDOMNode
+  'ReactDOM.render was removed in React 19',
+  'react-test-renderer is deprecated',
 ]);
-ignoreWarnings(['Warning: componentWillReceiveProps has been renamed']);
+ignoreWarnings([
+  'Warning: componentWillReceiveProps has been renamed',
+  'componentWillReceiveProps has been renamed',
+]);
+ignoreLogs([]);
 
-const roots = [];
+const unmountFunctions: Array<() => void | boolean> = [];
 
-function mountHelper(App) {
+function createContainer() {
   const container = document.createElement('div');
 
   ((document.body: any): HTMLBodyElement).appendChild(container);
 
+  return container;
+}
+
+function mountApp(App: () => React$Node) {
+  const container = createContainer();
+
   const root = createRoot(container);
   root.render(createElement(App));
 
-  roots.push(root);
+  unmountFunctions.push(() => root.unmount());
 }
 
+// $FlowFixMe[missing-local-annot]
+function mountStrictApp(App) {
+  function StrictRoot() {
+    return createElement(App);
+  }
+
+  const container = createContainer();
+
+  const root = createRoot(container, {unstable_strictMode: true});
+  root.render(createElement(StrictRoot));
+
+  unmountFunctions.push(() => root.unmount());
+}
+
+function mountLegacyApp(App: () => React$Node) {
+  // $FlowFixMe[prop-missing]: These are removed in 19.
+  const {render, unmountComponentAtNode} = require('react-dom');
+
+  function LegacyRender() {
+    return createElement(App);
+  }
+
+  const container = createContainer();
+
+  // $FlowFixMe[not-a-function]: These are removed in 19.
+  render(createElement(LegacyRender), container);
+
+  // $FlowFixMe: These are removed in 19.
+  unmountFunctions.push(() => unmountComponentAtNode(container));
+}
+
+const shouldRenderLegacy = semver.lte(
+  process.env.E2E_APP_REACT_VERSION,
+  '18.2.0',
+);
 function mountTestApp() {
-  mountHelper(ToDoList);
-  mountHelper(InspectableElements);
-  mountHelper(Hydration);
-  mountHelper(ElementTypes);
-  mountHelper(EditableProps);
-  mountHelper(InlineWarnings);
-  mountHelper(ReactNativeWeb);
-  mountHelper(Toggle);
-  mountHelper(ErrorBoundaries);
-  mountHelper(SuspenseTree);
-  mountHelper(DeeplyNestedComponents);
-  mountHelper(Iframe);
+  mountStrictApp(ToDoList);
+  mountApp(InspectableElements);
+  mountApp(Hydration);
+  mountApp(ElementTypes);
+  mountApp(EditableProps);
+  mountApp(ReactNativeWeb);
+  mountApp(Toggle);
+  mountApp(ErrorBoundaries);
+  mountApp(SuspenseTree);
+  mountApp(DeeplyNestedComponents);
+  mountApp(Iframe);
+
+  if (shouldRenderLegacy) {
+    mountLegacyApp(PartiallyStrictApp);
+  }
 }
 
 function unmountTestApp() {
-  roots.forEach(root => root.unmount());
+  unmountFunctions.forEach(fn => fn());
 }
 
 mountTestApp();

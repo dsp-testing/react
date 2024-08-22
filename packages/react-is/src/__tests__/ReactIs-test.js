@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -12,6 +12,7 @@
 let React;
 let ReactDOM;
 let ReactIs;
+let SuspenseList;
 
 describe('ReactIs', () => {
   beforeEach(() => {
@@ -20,6 +21,10 @@ describe('ReactIs', () => {
     React = require('react');
     ReactDOM = require('react-dom');
     ReactIs = require('react-is');
+
+    if (gate(flags => flags.enableSuspenseList)) {
+      SuspenseList = React.unstable_SuspenseList;
+    }
   });
 
   it('should return undefined for unknown/invalid types', () => {
@@ -62,18 +67,6 @@ describe('ReactIs', () => {
     expect(ReactIs.isValidElementType(MemoComponent)).toEqual(true);
     expect(ReactIs.isValidElementType(Context.Provider)).toEqual(true);
     expect(ReactIs.isValidElementType(Context.Consumer)).toEqual(true);
-    if (!__EXPERIMENTAL__) {
-      let factory;
-      expect(() => {
-        factory = React.createFactory('div');
-      }).toWarnDev(
-        'Warning: React.createFactory() is deprecated and will be removed in a ' +
-          'future major release. Consider using JSX or use React.createElement() ' +
-          'directly instead.',
-        {withoutStack: true},
-      );
-      expect(ReactIs.isValidElementType(factory)).toEqual(true);
-    }
     expect(ReactIs.isValidElementType(React.Fragment)).toEqual(true);
     expect(ReactIs.isValidElementType(React.StrictMode)).toEqual(true);
     expect(ReactIs.isValidElementType(React.Suspense)).toEqual(true);
@@ -186,10 +179,11 @@ describe('ReactIs', () => {
     expect(ReactIs.isSuspense(<div />)).toBe(false);
   });
 
+  // @gate enableSuspenseList
   it('should identify suspense list', () => {
-    expect(ReactIs.isValidElementType(React.SuspenseList)).toBe(true);
-    expect(ReactIs.typeOf(<React.SuspenseList />)).toBe(ReactIs.SuspenseList);
-    expect(ReactIs.isSuspenseList(<React.SuspenseList />)).toBe(true);
+    expect(ReactIs.isValidElementType(SuspenseList)).toBe(true);
+    expect(ReactIs.typeOf(<SuspenseList />)).toBe(ReactIs.SuspenseList);
+    expect(ReactIs.isSuspenseList(<SuspenseList />)).toBe(true);
     expect(ReactIs.isSuspenseList({type: ReactIs.SuspenseList})).toBe(false);
     expect(ReactIs.isSuspenseList('React.SuspenseList')).toBe(false);
     expect(ReactIs.isSuspenseList(<div />)).toBe(false);

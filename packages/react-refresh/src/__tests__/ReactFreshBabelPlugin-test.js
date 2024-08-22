@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -534,6 +534,31 @@ describe('ReactFreshBabelPlugin', () => {
           })(item);
         }
       `),
+    ).toMatchSnapshot();
+  });
+
+  it('supports typescript namespace syntax', () => {
+    expect(
+      transform(
+        `
+        namespace Foo {
+          export namespace Bar {
+            export const A = () => {};
+
+            function B() {};
+            export const B1 = B;
+          }
+
+          export const C = () => {};
+          export function D() {};
+
+          namespace NotExported {
+            export const E = () => {};
+          }
+        }
+      `,
+        {plugins: [['@babel/plugin-syntax-typescript', {isTSX: true}]]},
+      ),
     ).toMatchSnapshot();
   });
 });

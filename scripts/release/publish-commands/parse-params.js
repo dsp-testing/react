@@ -41,9 +41,12 @@ module.exports = () => {
   params.tags.forEach(tag => {
     switch (tag) {
       case 'latest':
+      case 'canary':
       case 'next':
       case 'experimental':
       case 'alpha':
+      case 'beta':
+      case 'rc':
       case 'untagged':
         break;
       default:

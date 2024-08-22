@@ -23,7 +23,7 @@ function getFormat(filepath) {
     if (filepath.includes('shims')) {
       // We don't currently lint these shims. We rely on the downstream Facebook
       // repo to transform them.
-      // TODO: Should we we lint them?
+      // TODO: Should we lint them?
       return null;
     }
     return 'rn';
@@ -40,9 +40,6 @@ function getFormat(filepath) {
   }
   if (filepath.includes('esm')) {
     return 'esm';
-  }
-  if (filepath.includes('umd')) {
-    return 'umd';
   }
   if (
     filepath.includes('oss-experimental') ||
@@ -79,7 +76,7 @@ async function lint(eslint, filepaths) {
 async function lintEverything() {
   console.log(`Linting build artifacts...`);
 
-  const allFilepaths = await glob('build2/**/*.js');
+  const allFilepaths = await glob('build/**/*.js');
 
   const pathsByFormat = new Map();
   for (const filepath of allFilepaths) {

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -10,7 +10,8 @@
 'use strict';
 
 let React;
-let ReactDOM;
+let ReactDOMClient;
+let act;
 
 let MockedComponent;
 let ReactDOMServer;
@@ -18,8 +19,9 @@ let ReactDOMServer;
 describe('ReactMockedComponent', () => {
   beforeEach(() => {
     React = require('react');
-    ReactDOM = require('react-dom');
+    ReactDOMClient = require('react-dom/client');
     ReactDOMServer = require('react-dom/server');
+    act = require('internal-test-utils').act;
 
     MockedComponent = class extends React.Component {
       render() {
@@ -30,42 +32,26 @@ describe('ReactMockedComponent', () => {
     MockedComponent.prototype.render = jest.fn();
   });
 
-  it('should allow a mocked component to be rendered in dev', () => {
+  it('should allow a mocked component to be rendered', async () => {
     const container = document.createElement('container');
-    if (__DEV__) {
-      ReactDOM.render(<MockedComponent />, container);
-    } else {
-      expect(() => ReactDOM.render(<MockedComponent />, container)).toThrow(
-        'Nothing was returned from render.',
-      );
-    }
+    const root = ReactDOMClient.createRoot(container);
+    await act(() => {
+      root.render(<MockedComponent />);
+    });
   });
 
-  it('should allow a mocked component to be updated in dev', () => {
+  it('should allow a mocked component to be updated in dev', async () => {
     const container = document.createElement('container');
-    if (__DEV__) {
-      ReactDOM.render(<MockedComponent />, container);
-    } else {
-      expect(() => ReactDOM.render(<MockedComponent />, container)).toThrow(
-        'Nothing was returned from render.',
-      );
-    }
-    if (__DEV__) {
-      ReactDOM.render(<MockedComponent />, container);
-    } else {
-      expect(() => ReactDOM.render(<MockedComponent />, container)).toThrow(
-        'Nothing was returned from render.',
-      );
-    }
+    const root = ReactDOMClient.createRoot(container);
+    await act(() => {
+      root.render(<MockedComponent />);
+    });
+    await act(() => {
+      root.render(<MockedComponent />);
+    });
   });
 
   it('should allow a mocked component to be rendered in dev (SSR)', () => {
-    if (__DEV__) {
-      ReactDOMServer.renderToString(<MockedComponent />);
-    } else {
-      expect(() => ReactDOMServer.renderToString(<MockedComponent />)).toThrow(
-        'Nothing was returned from render.',
-      );
-    }
+    ReactDOMServer.renderToString(<MockedComponent />);
   });
 });

@@ -1,8 +1,3 @@
-.HooksTreeView {
-  padding: 0.25rem;
-  border-top: 1px solid var(--color-border);
-}
-
 .Hook {
 }
 
@@ -77,4 +72,12 @@
   margin-right: 0.25rem;
   border-radius: 0.125rem;
   padding: 0.125rem 0.25rem;
+}
+
+.HookName {
+  color: var(--color-component-name);
+}
+
+.ToggleError {
+  color: var(--color-error-text);
 }

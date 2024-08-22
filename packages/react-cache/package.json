@@ -11,10 +11,8 @@
   "files": [
     "LICENSE",
     "README.md",
-    "build-info.json",
     "index.js",
-    "cjs/",
-    "umd/"
+    "cjs/"
   ],
   "peerDependencies": {
     "react": "^17.0.0"

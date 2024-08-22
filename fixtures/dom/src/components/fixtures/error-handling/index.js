@@ -41,7 +41,7 @@ class ErrorBoundary extends React.Component {
       if (this.state.error) {
         return <p>Captured an error: {this.state.error.message}</p>;
       } else {
-        return <p>Captured an error: {'' + this.state.error}</p>;
+        return <p>Captured an error: {String(this.state.error)}</p>;
       }
     }
     if (this.state.shouldThrow) {
@@ -243,7 +243,7 @@ class TrySilenceFatalError extends React.Component {
 
 function naiveMemoize(fn) {
   let memoizedEntry;
-  return function() {
+  return function () {
     if (!memoizedEntry) {
       memoizedEntry = {result: null};
       memoizedEntry.result = fn();
@@ -251,7 +251,7 @@ function naiveMemoize(fn) {
     return memoizedEntry.result;
   };
 }
-let memoizedFunction = naiveMemoize(function() {
+let memoizedFunction = naiveMemoize(function () {
   throw new Error('Passed');
 });
 

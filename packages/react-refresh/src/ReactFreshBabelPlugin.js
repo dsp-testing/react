@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,7 +7,7 @@
 
 'use strict';
 
-export default function(babel, opts = {}) {
+export default function (babel, opts = {}) {
   if (typeof babel.env === 'function') {
     // Only available in Babel 7.
     const env = babel.env();
@@ -230,6 +230,24 @@ export default function(babel, opts = {}) {
       case 'React.useImperativeHandle':
       case 'useDebugValue':
       case 'React.useDebugValue':
+      case 'useId':
+      case 'React.useId':
+      case 'useDeferredValue':
+      case 'React.useDeferredValue':
+      case 'useTransition':
+      case 'React.useTransition':
+      case 'useInsertionEffect':
+      case 'React.useInsertionEffect':
+      case 'useSyncExternalStore':
+      case 'React.useSyncExternalStore':
+      case 'useFormStatus':
+      case 'React.useFormStatus':
+      case 'useFormState':
+      case 'React.useFormState':
+      case 'useActionState':
+      case 'React.useActionState':
+      case 'useOptimistic':
+      case 'React.useOptimistic':
         return true;
       default:
         return false;
@@ -478,10 +496,15 @@ export default function(babel, opts = {}) {
           const node = path.node;
           let programPath;
           let insertAfterPath;
+          let modulePrefix = '';
           switch (path.parent.type) {
             case 'Program':
               insertAfterPath = path;
               programPath = path.parentPath;
+              break;
+            case 'TSModuleBlock':
+              insertAfterPath = path;
+              programPath = insertAfterPath.parentPath.parentPath;
               break;
             case 'ExportNamedDeclaration':
               insertAfterPath = path.parentPath;
@@ -494,6 +517,28 @@ export default function(babel, opts = {}) {
             default:
               return;
           }
+
+          // These types can be nested in typescript namespace
+          // We need to find the export chain
+          // Or return if it stays local
+          if (
+            path.parent.type === 'TSModuleBlock' ||
+            path.parent.type === 'ExportNamedDeclaration'
+          ) {
+            while (programPath.type !== 'Program') {
+              if (programPath.type === 'TSModuleDeclaration') {
+                if (
+                  programPath.parentPath.type !== 'Program' &&
+                  programPath.parentPath.type !== 'ExportNamedDeclaration'
+                ) {
+                  return;
+                }
+                modulePrefix = programPath.node.id.name + '$' + modulePrefix;
+              }
+              programPath = programPath.parentPath;
+            }
+          }
+
           const id = node.id;
           if (id === null) {
             // We don't currently handle anonymous default exports.
@@ -512,20 +557,17 @@ export default function(babel, opts = {}) {
           seenForRegistration.add(node);
           // Don't mutate the tree above this point.
 
+          const innerName = modulePrefix + inferredName;
           // export function Named() {}
           // function Named() {}
-          findInnerComponents(
-            inferredName,
-            path,
-            (persistentID, targetExpr) => {
-              const handle = createRegistration(programPath, persistentID);
-              insertAfterPath.insertAfter(
-                t.expressionStatement(
-                  t.assignmentExpression('=', handle, targetExpr),
-                ),
-              );
-            },
-          );
+          findInnerComponents(innerName, path, (persistentID, targetExpr) => {
+            const handle = createRegistration(programPath, persistentID);
+            insertAfterPath.insertAfter(
+              t.expressionStatement(
+                t.assignmentExpression('=', handle, targetExpr),
+              ),
+            );
+          });
         },
         exit(path) {
           const node = path.node;
@@ -679,10 +721,15 @@ export default function(babel, opts = {}) {
         const node = path.node;
         let programPath;
         let insertAfterPath;
+        let modulePrefix = '';
         switch (path.parent.type) {
           case 'Program':
             insertAfterPath = path;
             programPath = path.parentPath;
+            break;
+          case 'TSModuleBlock':
+            insertAfterPath = path;
+            programPath = insertAfterPath.parentPath.parentPath;
             break;
           case 'ExportNamedDeclaration':
             insertAfterPath = path.parentPath;
@@ -694,6 +741,27 @@ export default function(babel, opts = {}) {
             break;
           default:
             return;
+        }
+
+        // These types can be nested in typescript namespace
+        // We need to find the export chain
+        // Or return if it stays local
+        if (
+          path.parent.type === 'TSModuleBlock' ||
+          path.parent.type === 'ExportNamedDeclaration'
+        ) {
+          while (programPath.type !== 'Program') {
+            if (programPath.type === 'TSModuleDeclaration') {
+              if (
+                programPath.parentPath.type !== 'Program' &&
+                programPath.parentPath.type !== 'ExportNamedDeclaration'
+              ) {
+                return;
+              }
+              modulePrefix = programPath.node.id.name + '$' + modulePrefix;
+            }
+            programPath = programPath.parentPath;
+          }
         }
 
         // Make sure we're not mutating the same tree twice.
@@ -710,8 +778,9 @@ export default function(babel, opts = {}) {
         }
         const declPath = declPaths[0];
         const inferredName = declPath.node.id.name;
+        const innerName = modulePrefix + inferredName;
         findInnerComponents(
-          inferredName,
+          innerName,
           declPath,
           (persistentID, targetExpr, targetPath) => {
             if (targetPath === null) {

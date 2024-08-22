@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,10 +7,7 @@
  * @flow
  */
 
-// Keep in sync with https://github.com/facebook/flow/blob/master/lib/react.js
-export type StatelessFunctionalComponent<
-  P,
-> = React$StatelessFunctionalComponent<P>;
+// Keep in sync with https://github.com/facebook/flow/blob/main/lib/react.js
 export type ComponentType<-P> = React$ComponentType<P>;
 export type AbstractComponent<
   -Config,
@@ -18,6 +15,7 @@ export type AbstractComponent<
 > = React$AbstractComponent<Config, Instance>;
 export type ElementType = React$ElementType;
 export type Element<+C> = React$Element<C>;
+export type MixedElement = React$Element<ElementType>;
 export type Key = React$Key;
 export type Ref<C> = React$Ref<C>;
 export type Node = React$Node;
@@ -32,8 +30,7 @@ export type ChildrenArray<+T> = $ReadOnlyArray<ChildrenArray<T>> | T;
 // Export all exports so that they're available in tests.
 // We can't use export * from in Flow for some reason.
 export {
-  __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED,
-  act as unstable_act,
+  __CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE,
   Children,
   Component,
   Fragment,
@@ -41,38 +38,42 @@ export {
   PureComponent,
   StrictMode,
   Suspense,
-  SuspenseList,
   cloneElement,
   createContext,
   createElement,
-  createFactory,
-  createMutableSource,
   createRef,
+  use,
   forwardRef,
   isValidElement,
   lazy,
   memo,
+  cache,
   startTransition,
-  unstable_Cache,
   unstable_DebugTracingMode,
   unstable_LegacyHidden,
-  unstable_Offscreen,
+  unstable_Activity,
   unstable_Scope,
+  unstable_SuspenseList,
+  unstable_TracingMarker,
   unstable_getCacheForType,
   unstable_useCacheRefresh,
-  unstable_useOpaqueIdentifier,
+  useId,
   useCallback,
   useContext,
   useDebugValue,
   useDeferredValue,
   useEffect,
+  experimental_useEffectEvent,
   useImperativeHandle,
+  useInsertionEffect,
   useLayoutEffect,
   useMemo,
-  useMutableSource,
+  useOptimistic,
+  useSyncExternalStore,
   useReducer,
   useRef,
   useState,
   useTransition,
+  useActionState,
   version,
-} from './src/React';
+} from './src/ReactClient';

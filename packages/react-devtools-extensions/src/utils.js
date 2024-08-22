@@ -1,17 +1,9 @@
 /* global chrome */
 
-const IS_CHROME = navigator.userAgent.indexOf('Firefox') < 0;
-
-export type BrowserName = 'Chrome' | 'Firefox';
-
-export function getBrowserName(): BrowserName {
-  return IS_CHROME ? 'Chrome' : 'Firefox';
-}
-
-export type BrowserTheme = 'dark' | 'light';
+import type {BrowserTheme} from 'react-devtools-shared/src/devtools/views/DevTools';
 
 export function getBrowserTheme(): BrowserTheme {
-  if (IS_CHROME) {
+  if (__IS_CHROME__) {
     // chrome.devtools.panels added in Chrome 18.
     // chrome.devtools.panels.themeName added in Chrome 54.
     return chrome.devtools.panels.themeName === 'dark' ? 'dark' : 'light';
@@ -28,3 +20,6 @@ export function getBrowserTheme(): BrowserTheme {
     }
   }
 }
+
+export const COMPACT_VERSION_NAME = 'compact';
+export const EXTENSION_CONTAINED_VERSIONS = [COMPACT_VERSION_NAME];

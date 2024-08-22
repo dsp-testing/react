@@ -7,37 +7,62 @@ module.exports = {
   },
   globals: {
     // ES6
-    Map: true,
-    Set: true,
-    Symbol: true,
-    Proxy: true,
-    WeakMap: true,
-    WeakSet: true,
-    Uint16Array: true,
-    Reflect: true,
+    BigInt: 'readonly',
+    Map: 'readonly',
+    Set: 'readonly',
+    Symbol: 'readonly',
+    Proxy: 'readonly',
+    WeakMap: 'readonly',
+    WeakSet: 'readonly',
+
+    Int8Array: 'readonly',
+    Uint8Array: 'readonly',
+    Uint8ClampedArray: 'readonly',
+    Int16Array: 'readonly',
+    Uint16Array: 'readonly',
+    Int32Array: 'readonly',
+    Uint32Array: 'readonly',
+    Float32Array: 'readonly',
+    Float64Array: 'readonly',
+    BigInt64Array: 'readonly',
+    BigUint64Array: 'readonly',
+    DataView: 'readonly',
+    ArrayBuffer: 'readonly',
+
+    Reflect: 'readonly',
+    globalThis: 'readonly',
+
+    FinalizationRegistry: 'readonly',
+
     // Vendor specific
-    MSApp: true,
-    __REACT_DEVTOOLS_GLOBAL_HOOK__: true,
+    MSApp: 'readonly',
+    __REACT_DEVTOOLS_GLOBAL_HOOK__: 'readonly',
     // FB
-    __DEV__: true,
+    __DEV__: 'readonly',
     // Node.js Server Rendering
-    setImmediate: true,
-    Buffer: true,
+    process: 'readonly',
+    setImmediate: 'readonly',
+    Buffer: 'readonly',
     // Trusted Types
-    trustedTypes: true,
+    trustedTypes: 'readonly',
 
     // Scheduler profiling
-    Int32Array: true,
-    ArrayBuffer: true,
-
-    TaskController: true,
+    TaskController: 'readonly',
+    reportError: 'readonly',
+    AggregateError: 'readonly',
 
     // Flight
-    Uint8Array: true,
-    Promise: true,
+    Promise: 'readonly',
+
+    // Temp
+    AsyncLocalStorage: 'readonly',
+    async_hooks: 'readonly',
 
     // jest
-    jest: true,
+    jest: 'readonly',
+
+    // act
+    IS_REACT_ACT_ENVIRONMENT: 'readonly',
   },
   parserOptions: {
     ecmaVersion: 5,
@@ -51,5 +76,5 @@ module.exports = {
   // These plugins aren't used, but eslint complains if an eslint-ignore comment
   // references unused plugins. An alternate approach could be to strip
   // eslint-ignore comments as part of the build.
-  plugins: ['jest', 'no-for-of-loops', 'react', 'react-internal'],
+  plugins: ['ft-flow', 'jest', 'no-for-of-loops', 'react', 'react-internal'],
 };

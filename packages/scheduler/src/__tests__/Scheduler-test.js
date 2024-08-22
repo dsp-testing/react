@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -8,8 +8,6 @@
  * @jest-environment node
  */
 
-/* eslint-disable no-for-of-loops/no-for-of-loops */
-
 'use strict';
 
 let Scheduler;
@@ -17,6 +15,8 @@ let runtime;
 let performance;
 let cancelCallback;
 let scheduleCallback;
+let requestPaint;
+let shouldYield;
 let NormalPriority;
 
 // The Scheduler implementation uses browser APIs like `MessageChannel` and
@@ -40,6 +40,8 @@ describe('SchedulerBrowser', () => {
     cancelCallback = Scheduler.unstable_cancelCallback;
     scheduleCallback = Scheduler.unstable_scheduleCallback;
     NormalPriority = Scheduler.unstable_NormalPriority;
+    requestPaint = Scheduler.unstable_requestPaint;
+    shouldYield = Scheduler.unstable_shouldYield;
   });
 
   afterEach(() => {
@@ -52,6 +54,9 @@ describe('SchedulerBrowser', () => {
 
   function installMockBrowserRuntime() {
     let hasPendingMessageEvent = false;
+    let isFiringMessageEvent = false;
+    let hasPendingDiscreteEvent = false;
+    let hasPendingContinuousEvent = false;
 
     let timerIDCounter = 0;
     // let timerIDs = new Map();
@@ -102,6 +107,9 @@ describe('SchedulerBrowser', () => {
     function advanceTime(ms) {
       currentTime += ms;
     }
+    function resetTime() {
+      currentTime = 0;
+    }
     function fireMessageEvent() {
       ensureLogIsEmpty();
       if (!hasPendingMessageEvent) {
@@ -110,7 +118,35 @@ describe('SchedulerBrowser', () => {
       hasPendingMessageEvent = false;
       const onMessage = port1.onmessage;
       log('Message Event');
-      onMessage();
+
+      isFiringMessageEvent = true;
+      try {
+        onMessage();
+      } finally {
+        isFiringMessageEvent = false;
+        if (hasPendingDiscreteEvent) {
+          log('Discrete Event');
+          hasPendingDiscreteEvent = false;
+        }
+        if (hasPendingContinuousEvent) {
+          log('Continuous Event');
+          hasPendingContinuousEvent = false;
+        }
+      }
+    }
+    function scheduleDiscreteEvent() {
+      if (isFiringMessageEvent) {
+        hasPendingDiscreteEvent = true;
+      } else {
+        log('Discrete Event');
+      }
+    }
+    function scheduleContinuousEvent() {
+      if (isFiringMessageEvent) {
+        hasPendingContinuousEvent = true;
+      } else {
+        log('Continuous Event');
+      }
     }
     function log(val) {
       eventLog.push(val);
@@ -125,10 +161,13 @@ describe('SchedulerBrowser', () => {
     }
     return {
       advanceTime,
+      resetTime,
       fireMessageEvent,
       log,
       isLogEmpty,
       assertLog,
+      scheduleDiscreteEvent,
+      scheduleContinuousEvent,
     };
   }
 
@@ -144,6 +183,8 @@ describe('SchedulerBrowser', () => {
   it('task with continuation', () => {
     scheduleCallback(NormalPriority, () => {
       runtime.log('Task');
+      // Request paint so that we yield at the end of the frame interval
+      requestPaint();
       while (!Scheduler.unstable_shouldYield()) {
         runtime.advanceTime(1);
       }
@@ -158,7 +199,7 @@ describe('SchedulerBrowser', () => {
     runtime.assertLog([
       'Message Event',
       'Task',
-      'Yield at 5ms',
+      gate(flags => (flags.www ? 'Yield at 10ms' : 'Yield at 5ms')),
       'Post Message',
     ]);
 
@@ -204,7 +245,8 @@ describe('SchedulerBrowser', () => {
     });
     runtime.assertLog(['Post Message']);
     cancelCallback(task);
-    runtime.assertLog([]);
+    runtime.fireMessageEvent();
+    runtime.assertLog(['Message Event']);
   });
 
   it('throws when a task errors then continues in a new event', () => {
@@ -258,5 +300,37 @@ describe('SchedulerBrowser', () => {
     runtime.assertLog(['Post Message']);
     runtime.fireMessageEvent();
     runtime.assertLog(['Message Event', 'B']);
+  });
+
+  it('yielding continues in a new task regardless of how much time is remaining', () => {
+    scheduleCallback(NormalPriority, () => {
+      runtime.log('Original Task');
+      runtime.log('shouldYield: ' + shouldYield());
+      runtime.log('Return a continuation');
+      return () => {
+        runtime.log('Continuation Task');
+      };
+    });
+    runtime.assertLog(['Post Message']);
+
+    runtime.fireMessageEvent();
+    runtime.assertLog([
+      'Message Event',
+      'Original Task',
+      // Immediately before returning a continuation, `shouldYield` returns
+      // false, which means there must be time remaining in the frame.
+      'shouldYield: false',
+      'Return a continuation',
+
+      // The continuation should be scheduled in a separate macrotask even
+      // though there's time remaining.
+      'Post Message',
+    ]);
+
+    // No time has elapsed
+    expect(performance.now()).toBe(0);
+
+    runtime.fireMessageEvent();
+    runtime.assertLog(['Message Event', 'Continuation Task']);
   });
 });

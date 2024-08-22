@@ -1,6 +1,6 @@
 {
   "name": "react-devtools",
-  "version": "4.13.5",
+  "version": "5.3.1",
   "description": "Use react-devtools outside of the browser",
   "license": "MIT",
   "repository": {
@@ -13,21 +13,20 @@
   },
   "files": [
     "bin.js",
-    "build-info.json",
     "app.html",
     "app.js",
-    "index.js",
-    "icons"
+    "icons",
+    "preload.js"
   ],
   "scripts": {
     "start": "node bin.js"
   },
   "dependencies": {
     "cross-spawn": "^5.0.1",
-    "electron": "^11.1.0",
-    "ip": "^1.1.4",
+    "electron": "^23.1.2",
+    "internal-ip": "^6.2.0",
     "minimist": "^1.2.3",
-    "react-devtools-core": "4.13.5",
+    "react-devtools-core": "5.3.1",
     "update-notifier": "^2.1.0"
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -64,11 +64,11 @@ describe('editing interface', () => {
 
       act(() =>
         ReactDOM.render(
-          <ClassComponent
-            array={[1, 2, 3]}
-            object={{nested: 'initial'}}
-            shallow="initial"
-          />,
+          React.createElement(ClassComponent, {
+            array: [1, 2, 3],
+            object: {nested: 'initial'},
+            shallow: 'initial',
+          }),
           document.createElement('div'),
         ),
       );
@@ -84,6 +84,7 @@ describe('editing interface', () => {
       });
     }
 
+    // @reactVersion >= 16.0
     it('should have editable values', () => {
       mountTestApp();
 
@@ -125,6 +126,7 @@ describe('editing interface', () => {
       });
     });
 
+    // @reactVersion >= 16.0
     it('should have editable paths', () => {
       mountTestApp();
 
@@ -158,6 +160,7 @@ describe('editing interface', () => {
       });
     });
 
+    // @reactVersion >= 16.0
     it('should enable adding new object properties and array values', async () => {
       await mountTestApp();
 
@@ -206,6 +209,7 @@ describe('editing interface', () => {
       });
     });
 
+    // @reactVersion >= 16.0
     it('should have deletable keys', () => {
       mountTestApp();
 
@@ -266,7 +270,10 @@ describe('editing interface', () => {
 
       act(() =>
         ReactDOM.render(
-          <ClassComponent object={{nested: 'initial'}} shallow="initial" />,
+          React.createElement(ClassComponent, {
+            object: {nested: 'initial'},
+            shallow: 'initial',
+          }),
           document.createElement('div'),
         ),
       );
@@ -282,6 +289,7 @@ describe('editing interface', () => {
       });
     }
 
+    // @reactVersion >= 16.0
     it('should have editable values', () => {
       mountTestApp();
 
@@ -319,6 +327,7 @@ describe('editing interface', () => {
       });
     });
 
+    // @reactVersion >= 16.0
     it('should have editable paths', () => {
       mountTestApp();
 
@@ -353,6 +362,7 @@ describe('editing interface', () => {
       });
     });
 
+    // @reactVersion >= 16.0
     it('should enable adding new object properties and array values', async () => {
       await mountTestApp();
 
@@ -401,6 +411,7 @@ describe('editing interface', () => {
       });
     });
 
+    // @reactVersion >= 16.0
     it('should have deletable keys', () => {
       mountTestApp();
 
@@ -481,9 +492,11 @@ describe('editing interface', () => {
 
       act(() =>
         ReactDOM.render(
-          <LegacyContextProvider>
-            <ClassComponent />
-          </LegacyContextProvider>,
+          React.createElement(
+            LegacyContextProvider,
+            null,
+            React.createElement(ClassComponent),
+          ),
           document.createElement('div'),
         ),
       );
@@ -502,6 +515,7 @@ describe('editing interface', () => {
       });
     }
 
+    // @reactVersion >= 16.0
     it('should have editable values', () => {
       mountTestApp();
 
@@ -546,6 +560,7 @@ describe('editing interface', () => {
       });
     });
 
+    // @reactVersion >= 16.0
     it('should have editable paths', () => {
       mountTestApp();
 
@@ -581,6 +596,7 @@ describe('editing interface', () => {
       });
     });
 
+    // @reactVersion >= 16.0
     it('should enable adding new object properties and array values', async () => {
       await mountTestApp();
 
@@ -630,6 +646,7 @@ describe('editing interface', () => {
       });
     });
 
+    // @reactVersion >= 16.0
     it('should have deletable keys', () => {
       mountTestApp();
 

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -8,8 +8,10 @@
  */
 
 import {hydrate, fillInPath} from 'react-devtools-shared/src/hydration';
-import {separateDisplayNameAndHOCs} from 'react-devtools-shared/src/utils';
+import {backendToFrontendSerializedElementMapper} from 'react-devtools-shared/src/utils';
 import Store from 'react-devtools-shared/src/devtools/store';
+import TimeoutError from 'react-devtools-shared/src/errors/TimeoutError';
+import ElementPollingCancellationError from 'react-devtools-shared/src/errors/ElementPollingCancellationError';
 
 import type {
   InspectedElement as InspectedElementBackend,
@@ -22,15 +24,16 @@ import type {
 import type {
   DehydratedData,
   InspectedElement as InspectedElementFrontend,
-} from 'react-devtools-shared/src/devtools/views/Components/types';
+} from 'react-devtools-shared/src/frontend/types';
+import type {InspectedElementPath} from 'react-devtools-shared/src/frontend/types';
 
 export function clearErrorsAndWarnings({
   bridge,
   store,
-}: {|
+}: {
   bridge: FrontendBridge,
   store: Store,
-|}): void {
+}): void {
   store.rootIDToRendererID.forEach(rendererID => {
     bridge.send('clearErrorsAndWarnings', {rendererID});
   });
@@ -40,12 +43,12 @@ export function clearErrorsForElement({
   bridge,
   id,
   rendererID,
-}: {|
+}: {
   bridge: FrontendBridge,
   id: number,
   rendererID: number,
-|}): void {
-  bridge.send('clearErrorsForFiberID', {
+}): void {
+  bridge.send('clearErrorsForElementID', {
     rendererID,
     id,
   });
@@ -55,12 +58,12 @@ export function clearWarningsForElement({
   bridge,
   id,
   rendererID,
-}: {|
+}: {
   bridge: FrontendBridge,
   id: number,
   rendererID: number,
-|}): void {
-  bridge.send('clearWarningsForFiberID', {
+}): void {
+  bridge.send('clearWarningsForElementID', {
     rendererID,
     id,
   });
@@ -71,12 +74,12 @@ export function copyInspectedElementPath({
   id,
   path,
   rendererID,
-}: {|
+}: {
   bridge: FrontendBridge,
   id: number,
   path: Array<string | number>,
   rendererID: number,
-|}): void {
+}): void {
   bridge.send('copyElementPath', {
     id,
     path,
@@ -84,25 +87,25 @@ export function copyInspectedElementPath({
   });
 }
 
-export function inspectElement({
-  bridge,
-  id,
-  path,
-  rendererID,
-}: {|
+export function inspectElement(
   bridge: FrontendBridge,
+  forceFullData: boolean,
   id: number,
-  path: Array<string | number> | null,
+  path: InspectedElementPath | null,
   rendererID: number,
-|}): Promise<InspectedElementPayload> {
+  shouldListenToPauseEvents: boolean = false,
+): Promise<InspectedElementPayload> {
   const requestID = requestCounter++;
   const promise = getPromiseForRequestID<InspectedElementPayload>(
     requestID,
     'inspectedElement',
     bridge,
+    `Timed out while inspecting element ${id}.`,
+    shouldListenToPauseEvents,
   );
 
   bridge.send('inspectElement', {
+    forceFullData,
     id,
     path,
     rendererID,
@@ -119,12 +122,12 @@ export function storeAsGlobal({
   id,
   path,
   rendererID,
-}: {|
+}: {
   bridge: FrontendBridge,
   id: number,
   path: Array<string | number>,
   rendererID: number,
-|}): void {
+}): void {
   bridge.send('storeAsGlobal', {
     count: storeAsGlobalCount++,
     id,
@@ -133,7 +136,7 @@ export function storeAsGlobal({
   });
 }
 
-const TIMEOUT_DELAY = 5000;
+const TIMEOUT_DELAY = 10_000;
 
 let requestCounter = 0;
 
@@ -141,12 +144,33 @@ function getPromiseForRequestID<T>(
   requestID: number,
   eventType: $Keys<BackendEvents>,
   bridge: FrontendBridge,
+  timeoutMessage: string,
+  shouldListenToPauseEvents: boolean = false,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     const cleanup = () => {
       bridge.removeListener(eventType, onInspectedElement);
+      bridge.removeListener('shutdown', onShutdown);
+
+      if (shouldListenToPauseEvents) {
+        bridge.removeListener('pauseElementPolling', onDisconnect);
+      }
 
       clearTimeout(timeoutID);
+    };
+
+    const onShutdown = () => {
+      cleanup();
+      reject(
+        new Error(
+          'Failed to inspect element. Try again or restart React DevTools.',
+        ),
+      );
+    };
+
+    const onDisconnect = () => {
+      cleanup();
+      reject(new ElementPollingCancellationError());
     };
 
     const onInspectedElement = (data: any) => {
@@ -158,10 +182,15 @@ function getPromiseForRequestID<T>(
 
     const onTimeout = () => {
       cleanup();
-      reject();
+      reject(new TimeoutError(timeoutMessage));
     };
 
     bridge.addListener(eventType, onInspectedElement);
+    bridge.addListener('shutdown', onShutdown);
+
+    if (shouldListenToPauseEvents) {
+      bridge.addListener('pauseElementPolling', onDisconnect);
+    }
 
     const timeoutID = setTimeout(onTimeout, TIMEOUT_DELAY);
   });
@@ -197,11 +226,12 @@ export function convertInspectedElementBackendToFrontend(
     canViewSource,
     hasLegacyContext,
     id,
-    source,
     type,
     owners,
+    source,
     context,
     hooks,
+    plugins,
     props,
     rendererPackageName,
     rendererVersion,
@@ -227,25 +257,18 @@ export function convertInspectedElementBackendToFrontend(
     hasLegacyContext,
     id,
     key,
+    plugins,
     rendererPackageName,
     rendererVersion,
     rootType,
-    source,
+    // Previous backend implementations (<= 5.0.1) have a different interface for Source, with fileName.
+    // This gates the source features for only compatible backends: >= 5.0.2
+    source: source && source.sourceURL ? source : null,
     type,
     owners:
       owners === null
         ? null
-        : owners.map(owner => {
-            const [displayName, hocDisplayNames] = separateDisplayNameAndHOCs(
-              owner.displayName,
-              owner.type,
-            );
-            return {
-              ...owner,
-              displayName,
-              hocDisplayNames,
-            };
-          }),
+        : owners.map(backendToFrontendSerializedElementMapper),
     context: hydrateHelper(context),
     hooks: hydrateHelper(hooks),
     props: hydrateHelper(props),
@@ -259,7 +282,7 @@ export function convertInspectedElementBackendToFrontend(
 
 export function hydrateHelper(
   dehydratedData: DehydratedData | null,
-  path?: Array<string | number>,
+  path: ?InspectedElementPath,
 ): Object | null {
   if (dehydratedData !== null) {
     const {cleaned, data, unserializable} = dehydratedData;

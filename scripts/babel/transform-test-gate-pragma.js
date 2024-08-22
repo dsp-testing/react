@@ -2,6 +2,8 @@
 
 /* eslint-disable no-for-of-loops/no-for-of-loops */
 
+const getComments = require('./getComments');
+
 function transform(babel) {
   const {types: t} = babel;
 
@@ -72,7 +74,7 @@ function transform(babel) {
         continue;
       }
 
-      const next3 = code.substring(i, i + 3);
+      const next3 = code.slice(i, i + 3);
       if (next3 === '===') {
         tokens.push({type: '=='});
         i += 3;
@@ -84,7 +86,7 @@ function transform(babel) {
         continue;
       }
 
-      const next2 = code.substring(i, i + 2);
+      const next2 = code.slice(i, i + 2);
       switch (next2) {
         case '&&':
         case '||':
@@ -93,6 +95,10 @@ function transform(babel) {
           tokens.push({type: next2});
           i += 2;
           continue;
+        case '//':
+          // This is the beginning of a line comment. The rest of the line
+          // is ignored.
+          return tokens;
       }
 
       switch (char) {
@@ -274,7 +280,7 @@ function transform(babel) {
                 callee.name === 'it' ||
                 callee.name === 'fit'
               ) {
-                const comments = statement.leadingComments;
+                const comments = getComments(path);
                 if (comments !== undefined) {
                   const condition = buildGateCondition(comments);
                   if (condition !== null) {
@@ -300,7 +306,7 @@ function transform(babel) {
                 callee.property.type === 'Identifier' &&
                 callee.property.name === 'only'
               ) {
-                const comments = statement.leadingComments;
+                const comments = getComments(path);
                 if (comments !== undefined) {
                   const condition = buildGateCondition(comments);
                   if (condition !== null) {

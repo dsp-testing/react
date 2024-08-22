@@ -3,9 +3,7 @@
 'use strict';
 
 const commandLineArgs = require('command-line-args');
-const getBuildIdForCommit = require('./get-build-id-for-commit');
 const theme = require('../theme');
-const {logPromise} = require('../utils');
 
 const paramDefinitions = [
   {
@@ -34,6 +32,13 @@ const paramDefinitions = [
     type: String,
     description: 'Release channel (stable, experimental, or latest)',
   },
+  {
+    name: 'allowBrokenCI',
+    type: Boolean,
+    description:
+      'Continue even if CI is failing. Useful if you need to debug a broken build.',
+    defaultValue: false,
+  },
 ];
 
 module.exports = async () => {
@@ -43,30 +48,17 @@ module.exports = async () => {
   if (
     channel !== 'experimental' &&
     channel !== 'stable' &&
+    channel !== 'rc' &&
     channel !== 'latest'
   ) {
     console.error(
-      theme.error`Invalid release channel (-r) "${channel}". Must be "stable", "experimental", or "latest".`
+      theme.error`Invalid release channel (-r) "${channel}". Must be "stable", "experimental", "rc", or "latest".`
     );
     process.exit(1);
   }
 
-  if (params.build === null && params.commit === null) {
-    console.error(
-      theme.error`Either a --commit or --build param must be specified.`
-    );
-    process.exit(1);
-  }
-
-  try {
-    if (params.build === null) {
-      params.build = await logPromise(
-        getBuildIdForCommit(params.commit),
-        theme`Getting build ID for commit "${params.commit}"`
-      );
-    }
-  } catch (error) {
-    console.error(theme.error(error));
+  if (params.commit === null) {
+    console.error(theme.error`A --commit param must be specified.`);
     process.exit(1);
   }
 

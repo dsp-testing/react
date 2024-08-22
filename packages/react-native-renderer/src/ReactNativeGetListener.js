@@ -1,14 +1,14 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
+ *
  * @flow
  */
 
 import type {Fiber} from 'react-reconciler/src/ReactInternalTypes';
 
-import invariant from 'shared/invariant';
 import {getFiberCurrentPropsFromNode} from './legacy-events/EventPluginUtils';
 
 export default function getListener(
@@ -26,11 +26,12 @@ export default function getListener(
     return null;
   }
   const listener = props[registrationName];
-  invariant(
-    !listener || typeof listener === 'function',
-    'Expected `%s` listener to be a function, instead got a value of `%s` type.',
-    registrationName,
-    typeof listener,
-  );
+
+  if (listener && typeof listener !== 'function') {
+    throw new Error(
+      `Expected \`${registrationName}\` listener to be a function, instead got a value of \`${typeof listener}\` type.`,
+    );
+  }
+
   return listener;
 }

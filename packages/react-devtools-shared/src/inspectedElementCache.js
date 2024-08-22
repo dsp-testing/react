@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -11,8 +11,9 @@ import {
   unstable_getCacheForType as getCacheForType,
   startTransition,
 } from 'react';
-import Store from './devtools/store';
-import {inspectElement as inspectElementMutableSource} from './inspectedElementMutableSource';
+import Store from 'react-devtools-shared/src/devtools/store';
+import {inspectElement as inspectElementMutableSource} from 'react-devtools-shared/src/inspectedElementMutableSource';
+import ElementPollingCancellationError from 'react-devtools-shared/src//errors/ElementPollingCancellationError';
 
 import type {FrontendBridge} from 'react-devtools-shared/src/bridge';
 import type {Wakeable} from 'shared/ReactTypes';
@@ -20,26 +21,27 @@ import type {
   Element,
   InspectedElement as InspectedElementFrontend,
   InspectedElementResponseType,
-} from 'react-devtools-shared/src/devtools/views/Components/types';
+  InspectedElementPath,
+} from 'react-devtools-shared/src/frontend/types';
 
 const Pending = 0;
 const Resolved = 1;
 const Rejected = 2;
 
-type PendingRecord = {|
+type PendingRecord = {
   status: 0,
   value: Wakeable,
-|};
+};
 
-type ResolvedRecord<T> = {|
+type ResolvedRecord<T> = {
   status: 1,
   value: T,
-|};
+};
 
-type RejectedRecord = {|
+type RejectedRecord = {
   status: 2,
-  value: string,
-|};
+  value: Error | string,
+};
 
 type Record<T> = PendingRecord | ResolvedRecord<T> | RejectedRecord;
 
@@ -82,20 +84,23 @@ function createCacheSeed(
  */
 export function inspectElement(
   element: Element,
-  path: Array<string | number> | null,
+  path: InspectedElementPath | null,
   store: Store,
   bridge: FrontendBridge,
 ): InspectedElementFrontend | null {
   const map = getRecordMap();
   let record = map.get(element);
-
   if (!record) {
-    const callbacks = new Set();
+    const callbacks = new Set<() => mixed>();
     const wakeable: Wakeable = {
-      then(callback) {
+      then(callback: () => mixed) {
         callbacks.add(callback);
       },
+
+      // Optional property used by Timeline:
+      displayName: `Inspecting ${element.displayName || 'Unknown'}`,
     };
+
     const wake = () => {
       // This assumes they won't throw.
       callbacks.forEach(callback => callback());
@@ -110,35 +115,39 @@ export function inspectElement(
     if (rendererID == null) {
       const rejectedRecord = ((newRecord: any): RejectedRecord);
       rejectedRecord.status = Rejected;
-      rejectedRecord.value = `Could not inspect element with id "${element.id}"`;
+      rejectedRecord.value = new Error(
+        `Could not inspect element with id "${element.id}". No renderer found.`,
+      );
 
       map.set(element, record);
 
       return null;
     }
 
-    inspectElementMutableSource({
-      bridge,
-      element,
-      path,
-      rendererID: ((rendererID: any): number),
-    }).then(
-      ([inspectedElement: InspectedElementFrontend]) => {
-        const resolvedRecord = ((newRecord: any): ResolvedRecord<InspectedElementFrontend>);
+    inspectElementMutableSource(bridge, element, path, rendererID).then(
+      ([inspectedElement]: [
+        InspectedElementFrontend,
+        InspectedElementResponseType,
+      ]) => {
+        const resolvedRecord =
+          ((newRecord: any): ResolvedRecord<InspectedElementFrontend>);
         resolvedRecord.status = Resolved;
         resolvedRecord.value = inspectedElement;
+
         wake();
       },
 
       error => {
-        if (newRecord.status === Pending) {
-          const rejectedRecord = ((newRecord: any): RejectedRecord);
-          rejectedRecord.status = Rejected;
-          rejectedRecord.value = `Could not inspect element with id "${element.id}"`;
-          wake();
-        }
+        console.error(error);
+
+        const rejectedRecord = ((newRecord: any): RejectedRecord);
+        rejectedRecord.status = Rejected;
+        rejectedRecord.value = error;
+
+        wake();
       },
     );
+
     map.set(element, record);
   }
 
@@ -166,27 +175,117 @@ export function checkForUpdate({
   element: Element,
   refresh: RefreshFunction,
   store: Store,
-}): void {
+}): void | Promise<void> {
   const {id} = element;
   const rendererID = store.getRendererIDForElement(id);
-  if (rendererID != null) {
-    inspectElementMutableSource({
-      bridge,
-      element,
-      path: null,
-      rendererID: ((rendererID: any): number),
-    }).then(
-      ([
-        inspectedElement: InspectedElementFrontend,
-        responseType: InspectedElementResponseType,
-      ]) => {
-        if (responseType === 'full-data') {
-          startTransition(() => {
-            const [key, value] = createCacheSeed(element, inspectedElement);
-            refresh(key, value);
-          });
-        }
-      },
-    );
+
+  if (rendererID == null) {
+    return;
   }
+
+  return inspectElementMutableSource(
+    bridge,
+    element,
+    null,
+    rendererID,
+    true,
+  ).then(
+    ([inspectedElement, responseType]: [
+      InspectedElementFrontend,
+      InspectedElementResponseType,
+    ]) => {
+      if (responseType === 'full-data') {
+        startTransition(() => {
+          const [key, value] = createCacheSeed(element, inspectedElement);
+          refresh(key, value);
+        });
+      }
+    },
+  );
+}
+
+function createPromiseWhichResolvesInOneSecond() {
+  return new Promise(resolve => setTimeout(resolve, 1000));
+}
+
+type PollingStatus = 'idle' | 'running' | 'paused' | 'aborted';
+
+export function startElementUpdatesPolling({
+  bridge,
+  element,
+  refresh,
+  store,
+}: {
+  bridge: FrontendBridge,
+  element: Element,
+  refresh: RefreshFunction,
+  store: Store,
+}): {abort: () => void, pause: () => void, resume: () => void} {
+  let status: PollingStatus = 'idle';
+
+  function abort() {
+    status = 'aborted';
+  }
+
+  function resume() {
+    if (status === 'running' || status === 'aborted') {
+      return;
+    }
+
+    status = 'idle';
+    poll();
+  }
+
+  function pause() {
+    if (status === 'paused' || status === 'aborted') {
+      return;
+    }
+
+    status = 'paused';
+  }
+
+  function poll(): Promise<void> {
+    status = 'running';
+
+    return Promise.allSettled([
+      checkForUpdate({bridge, element, refresh, store}),
+      createPromiseWhichResolvesInOneSecond(),
+    ])
+      .then(([{status: updateStatus, reason}]) => {
+        // There isn't much to do about errors in this case,
+        // but we should at least log them, so they aren't silent.
+        // Log only if polling is still active, we can't handle the case when
+        // request was sent, and then bridge was remounted (for example, when user did navigate to a new page),
+        // but at least we can mark that polling was aborted
+        if (updateStatus === 'rejected' && status !== 'aborted') {
+          // This is expected Promise rejection, no need to log it
+          if (reason instanceof ElementPollingCancellationError) {
+            return;
+          }
+
+          console.error(reason);
+        }
+      })
+      .finally(() => {
+        const shouldContinuePolling =
+          status !== 'aborted' && status !== 'paused';
+
+        status = 'idle';
+
+        if (shouldContinuePolling) {
+          return poll();
+        }
+      });
+  }
+
+  poll();
+
+  return {abort, resume, pause};
+}
+
+export function clearCacheBecauseOfError(refresh: RefreshFunction): void {
+  startTransition(() => {
+    const map = createMap();
+    refresh(createMap, map);
+  });
 }

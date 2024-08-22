@@ -1,4 +1,4 @@
-/* eslint-disable no-fallthrough, react/react-in-jsx-scope, react/jsx-no-undef */
+/* eslint-disable react/react-in-jsx-scope, react/jsx-no-undef */
 /* global React ReactCache ReactDOM SchedulerTracing ScheduleTracing  */
 
 const apps = [];
@@ -32,7 +32,7 @@ if (typeof SchedulerTracing !== 'undefined') {
   trace = (_, __, callback) => callback();
 }
 
-// https://github.com/facebook/react/blob/master/CHANGELOG.md
+// https://github.com/facebook/react/blob/main/CHANGELOG.md
 switch (major) {
   case 16:
     switch (minor) {

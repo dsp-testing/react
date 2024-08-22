@@ -14,6 +14,10 @@
   margin-bottom: 0;
 }
 
+.OpenInURLSetting {
+  margin: 0.5rem 0;
+}
+
 .OptionGroup {
   display: inline-flex;
   flex-direction: row;
@@ -30,7 +34,8 @@
   margin-right: 0.5rem;
 }
 
-.Select {
+.Spacer {
+  height: 0.5rem;
 }
 
 .CheckboxOption {
@@ -83,6 +88,7 @@
   border: 1px solid var(--color-border);
   border-radius: 0.125rem;
   padding: 0.125rem;
+  margin-left: .5rem;
 }
 
 .InvalidRegExp,
@@ -128,14 +134,23 @@
   background-color: var(--color-toggle-text);
 }
 
-.ReleaseNotes,
-.ConsoleAPIWarning {
+.ReleaseNotes {
   width: 100%;
   background-color: var(--color-background-hover);
   padding: 0.25rem 0.5rem;
   border-radius: 0.25rem;
 }
 
-.ReleaseNotesLink {
+.ReleaseNotesLink, .StrictModeLink {
   color: var(--color-button-active);
+}
+
+.Warning {
+  color: var(--color-error-text);
+}
+
+.VersionsList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }

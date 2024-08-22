@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,42 +7,28 @@
  * @flow strict-local
  */
 
-/* eslint-disable react-internal/invariant-args */
-
 'use strict';
 
-import type {
-  ReactNativeBaseComponentViewConfig,
-  ViewConfigGetter,
-} from './ReactNativeTypes';
-
-import invariant from 'shared/invariant';
+import {type ViewConfig} from './ReactNativeTypes';
 
 // Event configs
-const customBubblingEventTypes = {};
-const customDirectEventTypes = {};
-const eventTypes = {};
-
-exports.customBubblingEventTypes = customBubblingEventTypes;
-exports.customDirectEventTypes = customDirectEventTypes;
-exports.eventTypes = eventTypes;
+export const customBubblingEventTypes = {};
+export const customDirectEventTypes = {};
 
 const viewConfigCallbacks = new Map();
 const viewConfigs = new Map();
 
-function processEventTypes(
-  viewConfig: ReactNativeBaseComponentViewConfig<>,
-): void {
+function processEventTypes(viewConfig: ViewConfig): void {
   const {bubblingEventTypes, directEventTypes} = viewConfig;
 
   if (__DEV__) {
     if (bubblingEventTypes != null && directEventTypes != null) {
       for (const topLevelType in directEventTypes) {
-        invariant(
-          bubblingEventTypes[topLevelType] == null,
-          'Event cannot be both direct and bubbling: %s',
-          topLevelType,
-        );
+        if (bubblingEventTypes[topLevelType] != null) {
+          throw new Error(
+            `Event cannot be both direct and bubbling: ${topLevelType}`,
+          );
+        }
       }
     }
   }
@@ -50,7 +36,7 @@ function processEventTypes(
   if (bubblingEventTypes != null) {
     for (const topLevelType in bubblingEventTypes) {
       if (customBubblingEventTypes[topLevelType] == null) {
-        eventTypes[topLevelType] = customBubblingEventTypes[topLevelType] =
+        customBubblingEventTypes[topLevelType] =
           bubblingEventTypes[topLevelType];
       }
     }
@@ -59,8 +45,7 @@ function processEventTypes(
   if (directEventTypes != null) {
     for (const topLevelType in directEventTypes) {
       if (customDirectEventTypes[topLevelType] == null) {
-        eventTypes[topLevelType] = customDirectEventTypes[topLevelType] =
-          directEventTypes[topLevelType];
+        customDirectEventTypes[topLevelType] = directEventTypes[topLevelType];
       }
     }
   }
@@ -70,42 +55,42 @@ function processEventTypes(
  * Registers a native view/component by name.
  * A callback is provided to load the view config from UIManager.
  * The callback is deferred until the view is actually rendered.
- * This is done to avoid causing Prepack deopts.
  */
-exports.register = function(name: string, callback: ViewConfigGetter): string {
-  invariant(
-    !viewConfigCallbacks.has(name),
-    'Tried to register two views with the same name %s',
-    name,
-  );
-  invariant(
-    typeof callback === 'function',
-    'View config getter callback for component `%s` must be a function (received `%s`)',
-    name,
-    callback === null ? 'null' : typeof callback,
-  );
+export function register(name: string, callback: () => ViewConfig): string {
+  if (viewConfigCallbacks.has(name)) {
+    throw new Error(`Tried to register two views with the same name ${name}`);
+  }
+
+  if (typeof callback !== 'function') {
+    throw new Error(
+      `View config getter callback for component \`${name}\` must be a function (received \`${
+        callback === null ? 'null' : typeof callback
+      }\`)`,
+    );
+  }
+
   viewConfigCallbacks.set(name, callback);
   return name;
-};
+}
 
 /**
  * Retrieves a config for the specified view.
  * If this is the first time the view has been used,
  * This configuration will be lazy-loaded from UIManager.
  */
-exports.get = function(name: string): ReactNativeBaseComponentViewConfig<> {
+export function get(name: string): ViewConfig {
   let viewConfig;
   if (!viewConfigs.has(name)) {
     const callback = viewConfigCallbacks.get(name);
     if (typeof callback !== 'function') {
-      invariant(
-        false,
-        'View config getter callback for component `%s` must be a function (received `%s`).%s',
-        name,
-        callback === null ? 'null' : typeof callback,
-        typeof name[0] === 'string' && /[a-z]/.test(name[0])
-          ? ' Make sure to start component names with a capital letter.'
-          : '',
+      throw new Error(
+        `View config getter callback for component \`${name}\` must be a function (received \`${
+          callback === null ? 'null' : typeof callback
+        }\`).${
+          typeof name[0] === 'string' && /[a-z]/.test(name[0])
+            ? ' Make sure to start component names with a capital letter.'
+            : ''
+        }`,
       );
     }
     viewConfig = callback();
@@ -118,6 +103,10 @@ exports.get = function(name: string): ReactNativeBaseComponentViewConfig<> {
   } else {
     viewConfig = viewConfigs.get(name);
   }
-  invariant(viewConfig, 'View config not found for name %s', name);
+
+  if (!viewConfig) {
+    throw new Error(`View config not found for name ${name}`);
+  }
+
   return viewConfig;
-};
+}

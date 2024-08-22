@@ -1,13 +1,18 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
 
-import {invokeGuardedCallbackAndCatchFirstError} from 'shared/ReactErrorUtils';
-import invariant from 'shared/invariant';
 import isArray from 'shared/isArray';
+
+import {enableOwnerStacks} from 'shared/ReactFeatureFlags';
+
+import {runWithFiberInDEV} from 'react-reconciler/src/ReactCurrentFiber';
+
+let hasError = false;
+let caughtError = null;
 
 export let getFiberCurrentPropsFromNode = null;
 export let getInstanceFromNode = null;
@@ -24,16 +29,15 @@ export function setComponentTree(
   if (__DEV__) {
     if (!getNodeFromInstance || !getInstanceFromNode) {
       console.error(
-        'EventPluginUtils.setComponentTree(...): Injected ' +
+        'Injected ' +
           'module is missing getNodeFromInstance or getInstanceFromNode.',
       );
     }
   }
 }
 
-let validateEventDispatches;
-if (__DEV__) {
-  validateEventDispatches = function(event) {
+function validateEventDispatches(event) {
+  if (__DEV__) {
     const dispatchListeners = event._dispatchListeners;
     const dispatchInstances = event._dispatchInstances;
 
@@ -41,20 +45,20 @@ if (__DEV__) {
     const listenersLen = listenersIsArr
       ? dispatchListeners.length
       : dispatchListeners
-      ? 1
-      : 0;
+        ? 1
+        : 0;
 
     const instancesIsArr = isArray(dispatchInstances);
     const instancesLen = instancesIsArr
       ? dispatchInstances.length
       : dispatchInstances
-      ? 1
-      : 0;
+        ? 1
+        : 0;
 
     if (instancesIsArr !== listenersIsArr || instancesLen !== listenersLen) {
       console.error('EventPluginUtils: Invalid `event`.');
     }
-  };
+  }
 }
 
 /**
@@ -64,9 +68,17 @@ if (__DEV__) {
  * @param {*} inst Internal component instance
  */
 export function executeDispatch(event, listener, inst) {
-  const type = event.type || 'unknown-event';
   event.currentTarget = getNodeFromInstance(inst);
-  invokeGuardedCallbackAndCatchFirstError(type, listener, undefined, event);
+  try {
+    listener(event);
+  } catch (error) {
+    if (!hasError) {
+      hasError = true;
+      caughtError = error;
+    } else {
+      // TODO: Make sure this error gets logged somehow.
+    }
+  }
   event.currentTarget = null;
 }
 
@@ -85,10 +97,22 @@ export function executeDispatchesInOrder(event) {
         break;
       }
       // Listeners and Instances are two parallel arrays that are always in sync.
-      executeDispatch(event, dispatchListeners[i], dispatchInstances[i]);
+      const listener = dispatchListeners[i];
+      const instance = dispatchInstances[i];
+      if (__DEV__ && enableOwnerStacks && instance !== null) {
+        runWithFiberInDEV(instance, executeDispatch, event, listener, instance);
+      } else {
+        executeDispatch(event, listener, instance);
+      }
     }
   } else if (dispatchListeners) {
-    executeDispatch(event, dispatchListeners, dispatchInstances);
+    const listener = dispatchListeners;
+    const instance = dispatchInstances;
+    if (__DEV__ && enableOwnerStacks && instance !== null) {
+      runWithFiberInDEV(instance, executeDispatch, event, listener, instance);
+    } else {
+      executeDispatch(event, listener, instance);
+    }
   }
   event._dispatchListeners = null;
   event._dispatchInstances = null;
@@ -150,10 +174,11 @@ export function executeDirectDispatch(event) {
   }
   const dispatchListener = event._dispatchListeners;
   const dispatchInstance = event._dispatchInstances;
-  invariant(
-    !isArray(dispatchListener),
-    'executeDirectDispatch(...): Invalid `event`.',
-  );
+
+  if (isArray(dispatchListener)) {
+    throw new Error('Invalid `event`.');
+  }
+
   event.currentTarget = dispatchListener
     ? getNodeFromInstance(dispatchInstance)
     : null;
@@ -170,4 +195,13 @@ export function executeDirectDispatch(event) {
  */
 export function hasDispatches(event) {
   return !!event._dispatchListeners;
+}
+
+export function rethrowCaughtError() {
+  if (hasError) {
+    const error = caughtError;
+    hasError = false;
+    caughtError = null;
+    throw error;
+  }
 }

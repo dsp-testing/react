@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -11,10 +11,14 @@
 
 let React;
 let ReactDOM;
-let ReactTestUtils;
+let findDOMNode;
+let ReactDOMClient;
 let TogglingComponent;
+let act;
+let Scheduler;
+let assertLog;
 
-let log;
+let container;
 
 describe('ReactEmptyComponent', () => {
   beforeEach(() => {
@@ -22,20 +26,27 @@ describe('ReactEmptyComponent', () => {
 
     React = require('react');
     ReactDOM = require('react-dom');
-    ReactTestUtils = require('react-dom/test-utils');
+    ReactDOMClient = require('react-dom/client');
+    findDOMNode =
+      ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE
+        .findDOMNode;
+    Scheduler = require('scheduler');
+    const InternalTestUtils = require('internal-test-utils');
+    act = InternalTestUtils.act;
+    assertLog = InternalTestUtils.assertLog;
 
-    log = jest.fn();
+    container = document.createElement('div');
 
     TogglingComponent = class extends React.Component {
       state = {component: this.props.firstComponent};
 
       componentDidMount() {
-        log(ReactDOM.findDOMNode(this));
+        Scheduler.log('mount ' + findDOMNode(this)?.nodeName);
         this.setState({component: this.props.secondComponent});
       }
 
       componentDidUpdate() {
-        log(ReactDOM.findDOMNode(this));
+        Scheduler.log('update ' + findDOMNode(this)?.nodeName);
       }
 
       render() {
@@ -45,295 +56,331 @@ describe('ReactEmptyComponent', () => {
     };
   });
 
-  it('should not produce child DOM nodes for null and false', () => {
-    class Component1 extends React.Component {
-      render() {
-        return null;
+  describe.each([null, undefined])('when %s', nullORUndefined => {
+    it('should not throw when rendering', () => {
+      function EmptyComponent() {
+        return nullORUndefined;
       }
-    }
 
-    class Component2 extends React.Component {
-      render() {
+      const root = ReactDOMClient.createRoot(container);
+
+      expect(() => {
+        ReactDOM.flushSync(() => {
+          root.render(<EmptyComponent />);
+        });
+      }).not.toThrowError();
+    });
+
+    it('should not produce child DOM nodes for nullish and false', async () => {
+      function Component1() {
+        return nullORUndefined;
+      }
+
+      function Component2() {
         return false;
       }
-    }
 
-    const container1 = document.createElement('div');
-    ReactDOM.render(<Component1 />, container1);
-    expect(container1.children.length).toBe(0);
+      const container1 = document.createElement('div');
+      const root1 = ReactDOMClient.createRoot(container1);
+      await act(() => {
+        root1.render(<Component1 />);
+      });
+      expect(container1.children.length).toBe(0);
 
-    const container2 = document.createElement('div');
-    ReactDOM.render(<Component2 />, container2);
-    expect(container2.children.length).toBe(0);
-  });
+      const container2 = document.createElement('div');
+      const root2 = ReactDOMClient.createRoot(container2);
+      await act(() => {
+        root2.render(<Component2 />);
+      });
+      expect(container2.children.length).toBe(0);
+    });
 
-  it('should still throw when rendering to undefined', () => {
-    class Component extends React.Component {
-      render() {}
-    }
-
-    expect(function() {
-      ReactTestUtils.renderIntoDocument(<Component />);
-    }).toThrowError(
-      'Component(...): Nothing was returned from render. This usually means a return statement is missing. ' +
-        'Or, to render nothing, return null.',
-    );
-  });
-
-  it('should be able to switch between rendering null and a normal tag', () => {
-    const instance1 = (
-      <TogglingComponent firstComponent={null} secondComponent={'div'} />
-    );
-    const instance2 = (
-      <TogglingComponent firstComponent={'div'} secondComponent={null} />
-    );
-
-    ReactTestUtils.renderIntoDocument(instance1);
-    ReactTestUtils.renderIntoDocument(instance2);
-
-    expect(log).toHaveBeenCalledTimes(4);
-    expect(log).toHaveBeenNthCalledWith(1, null);
-    expect(log).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({tagName: 'DIV'}),
-    );
-    expect(log).toHaveBeenNthCalledWith(
-      3,
-      expect.objectContaining({tagName: 'DIV'}),
-    );
-    expect(log).toHaveBeenNthCalledWith(4, null);
-  });
-
-  it('should be able to switch in a list of children', () => {
-    const instance1 = (
-      <TogglingComponent firstComponent={null} secondComponent={'div'} />
-    );
-
-    ReactTestUtils.renderIntoDocument(
-      <div>
-        {instance1}
-        {instance1}
-        {instance1}
-      </div>,
-    );
-
-    expect(log).toHaveBeenCalledTimes(6);
-    expect(log).toHaveBeenNthCalledWith(1, null);
-    expect(log).toHaveBeenNthCalledWith(2, null);
-    expect(log).toHaveBeenNthCalledWith(3, null);
-    expect(log).toHaveBeenNthCalledWith(
-      4,
-      expect.objectContaining({tagName: 'DIV'}),
-    );
-    expect(log).toHaveBeenNthCalledWith(
-      5,
-      expect.objectContaining({tagName: 'DIV'}),
-    );
-    expect(log).toHaveBeenNthCalledWith(
-      6,
-      expect.objectContaining({tagName: 'DIV'}),
-    );
-  });
-
-  it('should distinguish between a script placeholder and an actual script tag', () => {
-    const instance1 = (
-      <TogglingComponent firstComponent={null} secondComponent={'script'} />
-    );
-    const instance2 = (
-      <TogglingComponent firstComponent={'script'} secondComponent={null} />
-    );
-
-    expect(function() {
-      ReactTestUtils.renderIntoDocument(instance1);
-    }).not.toThrow();
-    expect(function() {
-      ReactTestUtils.renderIntoDocument(instance2);
-    }).not.toThrow();
-
-    expect(log).toHaveBeenCalledTimes(4);
-    expect(log).toHaveBeenNthCalledWith(1, null);
-    expect(log).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({tagName: 'SCRIPT'}),
-    );
-    expect(log).toHaveBeenNthCalledWith(
-      3,
-      expect.objectContaining({tagName: 'SCRIPT'}),
-    );
-    expect(log).toHaveBeenNthCalledWith(4, null);
-  });
-
-  it(
-    'should have findDOMNode return null when multiple layers of composite ' +
-      'components render to the same null placeholder',
-    () => {
-      class GrandChild extends React.Component {
-        render() {
-          return null;
-        }
-      }
-
-      class Child extends React.Component {
-        render() {
-          return <GrandChild />;
-        }
-      }
-
+    it('should be able to switch between rendering nullish and a normal tag', async () => {
       const instance1 = (
-        <TogglingComponent firstComponent={'div'} secondComponent={Child} />
+        <TogglingComponent
+          firstComponent={nullORUndefined}
+          secondComponent={'div'}
+        />
       );
       const instance2 = (
-        <TogglingComponent firstComponent={Child} secondComponent={'div'} />
+        <TogglingComponent
+          firstComponent={'div'}
+          secondComponent={nullORUndefined}
+        />
       );
 
-      expect(function() {
-        ReactTestUtils.renderIntoDocument(instance1);
-      }).not.toThrow();
-      expect(function() {
-        ReactTestUtils.renderIntoDocument(instance2);
-      }).not.toThrow();
+      const container2 = document.createElement('div');
+      const root1 = ReactDOMClient.createRoot(container);
+      await act(() => {
+        root1.render(instance1);
+      });
 
-      expect(log).toHaveBeenCalledTimes(4);
-      expect(log).toHaveBeenNthCalledWith(
-        1,
-        expect.objectContaining({tagName: 'DIV'}),
+      assertLog(['mount undefined', 'update DIV']);
+
+      const root2 = ReactDOMClient.createRoot(container2);
+      await act(() => {
+        root2.render(instance2);
+      });
+
+      assertLog(['mount DIV', 'update undefined']);
+    });
+
+    it('should be able to switch in a list of children', async () => {
+      const instance1 = (
+        <TogglingComponent
+          firstComponent={nullORUndefined}
+          secondComponent={'div'}
+        />
       );
-      expect(log).toHaveBeenNthCalledWith(2, null);
-      expect(log).toHaveBeenNthCalledWith(3, null);
-      expect(log).toHaveBeenNthCalledWith(
-        4,
-        expect.objectContaining({tagName: 'DIV'}),
-      );
-    },
-  );
 
-  it('works when switching components', () => {
-    let assertions = 0;
-
-    class Inner extends React.Component {
-      render() {
-        return <span />;
-      }
-
-      componentDidMount() {
-        // Make sure the DOM node resolves properly even if we're replacing a
-        // `null` component
-        expect(ReactDOM.findDOMNode(this)).not.toBe(null);
-        assertions++;
-      }
-
-      componentWillUnmount() {
-        // Even though we're getting replaced by `null`, we haven't been
-        // replaced yet!
-        expect(ReactDOM.findDOMNode(this)).not.toBe(null);
-        assertions++;
-      }
-    }
-
-    class Wrapper extends React.Component {
-      render() {
-        return this.props.showInner ? <Inner /> : null;
-      }
-    }
-
-    const el = document.createElement('div');
-    let component;
-
-    // Render the <Inner /> component...
-    component = ReactDOM.render(<Wrapper showInner={true} />, el);
-    expect(ReactDOM.findDOMNode(component)).not.toBe(null);
-
-    // Switch to null...
-    component = ReactDOM.render(<Wrapper showInner={false} />, el);
-    expect(ReactDOM.findDOMNode(component)).toBe(null);
-
-    // ...then switch back.
-    component = ReactDOM.render(<Wrapper showInner={true} />, el);
-    expect(ReactDOM.findDOMNode(component)).not.toBe(null);
-
-    expect(assertions).toBe(3);
-  });
-
-  it('can render null at the top level', () => {
-    const div = document.createElement('div');
-    ReactDOM.render(null, div);
-    expect(div.innerHTML).toBe('');
-  });
-
-  it('does not break when updating during mount', () => {
-    class Child extends React.Component {
-      componentDidMount() {
-        if (this.props.onMount) {
-          this.props.onMount();
-        }
-      }
-
-      render() {
-        if (!this.props.visible) {
-          return null;
-        }
-
-        return <div>hello world</div>;
-      }
-    }
-
-    class Parent extends React.Component {
-      update = () => {
-        this.forceUpdate();
-      };
-
-      render() {
-        return (
+      const root = ReactDOMClient.createRoot(container);
+      await act(() => {
+        root.render(
           <div>
-            <Child key="1" visible={false} />
-            <Child key="0" visible={true} onMount={this.update} />
-            <Child key="2" visible={false} />
-          </div>
+            {instance1}
+            {instance1}
+            {instance1}
+          </div>,
         );
-      }
-    }
+      });
 
-    expect(function() {
-      ReactTestUtils.renderIntoDocument(<Parent />);
-    }).not.toThrow();
-  });
+      assertLog([
+        'mount undefined',
+        'mount undefined',
+        'mount undefined',
+        'update DIV',
+        'update DIV',
+        'update DIV',
+      ]);
+    });
 
-  it('preserves the dom node during updates', () => {
-    class Empty extends React.Component {
-      render() {
-        return null;
-      }
-    }
+    it('should distinguish between a script placeholder and an actual script tag', () => {
+      const instance1 = (
+        <TogglingComponent
+          firstComponent={nullORUndefined}
+          secondComponent={'script'}
+        />
+      );
+      const instance2 = (
+        <TogglingComponent
+          firstComponent={'script'}
+          secondComponent={nullORUndefined}
+        />
+      );
 
-    const container = document.createElement('div');
+      const root1 = ReactDOMClient.createRoot(container);
+      expect(() => {
+        ReactDOM.flushSync(() => {
+          root1.render(instance1);
+        });
+      }).not.toThrow();
 
-    ReactDOM.render(<Empty />, container);
-    const noscript1 = container.firstChild;
-    expect(noscript1).toBe(null);
+      const container2 = document.createElement('div');
+      const root2 = ReactDOMClient.createRoot(container2);
+      expect(() => {
+        ReactDOM.flushSync(() => {
+          root2.render(instance2);
+        });
+      }).not.toThrow();
 
-    // This update shouldn't create a DOM node
-    ReactDOM.render(<Empty />, container);
-    const noscript2 = container.firstChild;
-    expect(noscript2).toBe(null);
-  });
+      assertLog([
+        'mount undefined',
+        'update SCRIPT',
+        'mount SCRIPT',
+        'update undefined',
+      ]);
+    });
 
-  it('should warn about React.forwardRef that returns undefined', () => {
-    const Empty = () => {};
-    const EmptyForwardRef = React.forwardRef(Empty);
+    it(
+      'should have findDOMNode return null when multiple layers of composite ' +
+        'components render to the same nullish placeholder',
+      () => {
+        function GrandChild() {
+          return nullORUndefined;
+        }
 
-    expect(() => {
-      ReactTestUtils.renderIntoDocument(<EmptyForwardRef />);
-    }).toThrowError(
-      'ForwardRef(Empty)(...): Nothing was returned from render.',
+        function Child() {
+          return <GrandChild />;
+        }
+
+        const instance1 = (
+          <TogglingComponent firstComponent={'div'} secondComponent={Child} />
+        );
+        const instance2 = (
+          <TogglingComponent firstComponent={Child} secondComponent={'div'} />
+        );
+
+        const root1 = ReactDOMClient.createRoot(container);
+        expect(() => {
+          ReactDOM.flushSync(() => {
+            root1.render(instance1);
+          });
+        }).not.toThrow();
+
+        const container2 = document.createElement('div');
+        const root2 = ReactDOMClient.createRoot(container2);
+        expect(() => {
+          ReactDOM.flushSync(() => {
+            root2.render(instance2);
+          });
+        }).not.toThrow();
+
+        assertLog([
+          'mount DIV',
+          'update undefined',
+          'mount undefined',
+          'update DIV',
+        ]);
+      },
     );
-  });
 
-  it('should warn about React.memo that returns undefined', () => {
-    const Empty = () => {};
-    const EmptyMemo = React.memo(Empty);
+    it('works when switching components', async () => {
+      let innerRef;
 
-    expect(() => {
-      ReactTestUtils.renderIntoDocument(<EmptyMemo />);
-    }).toThrowError('Empty(...): Nothing was returned from render.');
+      class Inner extends React.Component {
+        render() {
+          return <span />;
+        }
+
+        componentDidMount() {
+          // Make sure the DOM node resolves properly even if we're replacing a
+          // `null` component
+          expect(findDOMNode(this)).not.toBe(null);
+        }
+
+        componentWillUnmount() {
+          // Even though we're getting replaced by `null`, we haven't been
+          // replaced yet!
+          expect(findDOMNode(this)).not.toBe(null);
+        }
+      }
+
+      function Wrapper({showInner}) {
+        innerRef = React.createRef(null);
+        return showInner ? <Inner ref={innerRef} /> : nullORUndefined;
+      }
+
+      const el = document.createElement('div');
+
+      // Render the <Inner /> component...
+      const root = ReactDOMClient.createRoot(el);
+      await act(() => {
+        root.render(<Wrapper showInner={true} />);
+      });
+      expect(innerRef.current).not.toBe(null);
+
+      // Switch to null...
+      await act(() => {
+        root.render(<Wrapper showInner={false} />);
+      });
+      expect(innerRef.current).toBe(null);
+
+      // ...then switch back.
+      await act(() => {
+        root.render(<Wrapper showInner={true} />);
+      });
+      expect(innerRef.current).not.toBe(null);
+
+      expect.assertions(6);
+    });
+
+    it('can render nullish at the top level', async () => {
+      const div = document.createElement('div');
+      const root = ReactDOMClient.createRoot(div);
+
+      await act(() => {
+        root.render(nullORUndefined);
+      });
+      expect(div.innerHTML).toBe('');
+    });
+
+    it('does not break when updating during mount', () => {
+      class Child extends React.Component {
+        componentDidMount() {
+          if (this.props.onMount) {
+            this.props.onMount();
+          }
+        }
+
+        render() {
+          if (!this.props.visible) {
+            return nullORUndefined;
+          }
+
+          return <div>hello world</div>;
+        }
+      }
+
+      class Parent extends React.Component {
+        update = () => {
+          this.forceUpdate();
+        };
+
+        render() {
+          return (
+            <div>
+              <Child key="1" visible={false} />
+              <Child key="0" visible={true} onMount={this.update} />
+              <Child key="2" visible={false} />
+            </div>
+          );
+        }
+      }
+
+      const root = ReactDOMClient.createRoot(container);
+      expect(() => {
+        ReactDOM.flushSync(() => {
+          root.render(<Parent />);
+        });
+      }).not.toThrow();
+    });
+
+    it('preserves the dom node during updates', async () => {
+      function Empty() {
+        return nullORUndefined;
+      }
+
+      const root = ReactDOMClient.createRoot(container);
+      await act(() => {
+        root.render(<Empty />);
+      });
+      const noscript1 = container.firstChild;
+      expect(noscript1).toBe(null);
+
+      // This update shouldn't create a DOM node
+      await act(() => {
+        root.render(<Empty />);
+      });
+      const noscript2 = container.firstChild;
+      expect(noscript2).toBe(null);
+    });
+
+    it('should not warn about React.forwardRef that returns nullish', () => {
+      const Empty = () => {
+        return nullORUndefined;
+      };
+      const EmptyForwardRef = React.forwardRef(Empty);
+
+      const root = ReactDOMClient.createRoot(container);
+      expect(() => {
+        ReactDOM.flushSync(() => {
+          root.render(<EmptyForwardRef />);
+        });
+      }).not.toThrowError();
+    });
+
+    it('should not warn about React.memo that returns nullish', () => {
+      const Empty = () => {
+        return nullORUndefined;
+      };
+      const EmptyMemo = React.memo(Empty);
+
+      const root = ReactDOMClient.createRoot(container);
+      expect(() => {
+        ReactDOM.flushSync(() => {
+          root.render(<EmptyMemo />);
+        });
+      }).not.toThrowError();
+    });
   });
 });

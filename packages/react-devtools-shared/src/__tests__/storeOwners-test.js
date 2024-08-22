@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -8,11 +8,11 @@
  */
 
 const {printOwnersList} = require('../devtools/utils');
+const {getVersionedRenderImplementation} = require('./utils');
 
 describe('Store owners list', () => {
   let React;
   let act;
-  let legacyRender;
   let store;
 
   beforeEach(() => {
@@ -23,8 +23,14 @@ describe('Store owners list', () => {
 
     const utils = require('./utils');
     act = utils.act;
-    legacyRender = utils.legacyRender;
   });
+
+  const {render} = getVersionedRenderImplementation();
+
+  function getFormattedOwnersList(elementID) {
+    const ownersList = store.getOwnersListForElement(elementID);
+    return printOwnersList(ownersList);
+  }
 
   it('should drill through intermediate components', () => {
     const Root = () => (
@@ -38,18 +44,27 @@ describe('Store owners list', () => {
     const Leaf = () => <div>Leaf</div>;
     const Intermediate = ({children}) => <Wrapper>{children}</Wrapper>;
 
-    act(() => legacyRender(<Root />, document.createElement('div')));
-    expect(store).toMatchSnapshot('1: mount');
+    act(() => render(<Root />));
+    expect(store).toMatchInlineSnapshot(`
+      [root]
+        ▾ <Root>
+          ▾ <Intermediate>
+            ▾ <Wrapper>
+                <Leaf>
+    `);
 
     const rootID = store.getElementIDAtIndex(0);
-    expect(
-      printOwnersList(store.getOwnersListForElement(rootID)),
-    ).toMatchSnapshot('2: components owned by <Root>');
+    expect(getFormattedOwnersList(rootID)).toMatchInlineSnapshot(`
+      "  ▾ <Root>
+          ▾ <Intermediate>
+              <Leaf>"
+    `);
 
     const intermediateID = store.getElementIDAtIndex(1);
-    expect(
-      printOwnersList(store.getOwnersListForElement(intermediateID)),
-    ).toMatchSnapshot('3: components owned by <Intermediate>');
+    expect(getFormattedOwnersList(intermediateID)).toMatchInlineSnapshot(`
+      "  ▾ <Intermediate>
+          ▾ <Wrapper>"
+    `);
   });
 
   it('should drill through interleaved intermediate components', () => {
@@ -66,18 +81,31 @@ describe('Store owners list', () => {
       <Wrapper key="wrapper">{children}</Wrapper>,
     ];
 
-    act(() => legacyRender(<Root />, document.createElement('div')));
-    expect(store).toMatchSnapshot('1: mount');
+    act(() => render(<Root />));
+    expect(store).toMatchInlineSnapshot(`
+      [root]
+        ▾ <Root>
+          ▾ <Intermediate key="intermediate">
+              <Leaf key="leaf">
+            ▾ <Wrapper key="wrapper">
+                <Leaf>
+            <Leaf key="leaf">
+    `);
 
     const rootID = store.getElementIDAtIndex(0);
-    expect(
-      printOwnersList(store.getOwnersListForElement(rootID)),
-    ).toMatchSnapshot('2: components owned by <Root>');
+    expect(getFormattedOwnersList(rootID)).toMatchInlineSnapshot(`
+      "  ▾ <Root>
+          ▾ <Intermediate key="intermediate">
+              <Leaf>
+            <Leaf key="leaf">"
+    `);
 
     const intermediateID = store.getElementIDAtIndex(1);
-    expect(
-      printOwnersList(store.getOwnersListForElement(intermediateID)),
-    ).toMatchSnapshot('3: components owned by <Intermediate>');
+    expect(getFormattedOwnersList(intermediateID)).toMatchInlineSnapshot(`
+      "  ▾ <Intermediate key="intermediate">
+            <Leaf key="leaf">
+          ▾ <Wrapper key="wrapper">"
+    `);
   });
 
   it('should show the proper owners list order and contents after insertions and deletions', () => {
@@ -95,56 +123,57 @@ describe('Store owners list', () => {
     const Leaf = () => <div>Leaf</div>;
     const Intermediate = ({children}) => <Wrapper>{children}</Wrapper>;
 
-    const container = document.createElement('div');
-
-    act(() =>
-      legacyRender(
-        <Root includeDirect={false} includeIndirect={true} />,
-        container,
-      ),
-    );
-    expect(store).toMatchSnapshot('1: mount');
+    act(() => render(<Root includeDirect={false} includeIndirect={true} />));
 
     const rootID = store.getElementIDAtIndex(0);
-    expect(
-      printOwnersList(store.getOwnersListForElement(rootID)),
-    ).toMatchSnapshot('2: components owned by <Root>');
+    expect(store).toMatchInlineSnapshot(`
+      [root]
+        ▾ <Root>
+          ▾ <Intermediate>
+            ▾ <Wrapper>
+                <Leaf>
+    `);
+    expect(getFormattedOwnersList(rootID)).toMatchInlineSnapshot(`
+      "  ▾ <Root>
+          ▾ <Intermediate>
+              <Leaf>"
+    `);
 
-    act(() =>
-      legacyRender(
-        <Root includeDirect={true} includeIndirect={true} />,
-        container,
-      ),
+    act(() => render(<Root includeDirect={true} includeIndirect={true} />));
+    expect(store).toMatchInlineSnapshot(`
+      [root]
+        ▾ <Root>
+            <Leaf>
+          ▾ <Intermediate>
+            ▾ <Wrapper>
+                <Leaf>
+    `);
+    expect(getFormattedOwnersList(rootID)).toMatchInlineSnapshot(`
+      "  ▾ <Root>
+            <Leaf>
+          ▾ <Intermediate>
+              <Leaf>"
+    `);
+
+    act(() => render(<Root includeDirect={true} includeIndirect={false} />));
+    expect(store).toMatchInlineSnapshot(`
+      [root]
+        ▾ <Root>
+            <Leaf>
+    `);
+    expect(getFormattedOwnersList(rootID)).toMatchInlineSnapshot(`
+      "  ▾ <Root>
+            <Leaf>"
+    `);
+
+    act(() => render(<Root includeDirect={false} includeIndirect={false} />));
+    expect(store).toMatchInlineSnapshot(`
+      [root]
+          <Root>
+    `);
+    expect(getFormattedOwnersList(rootID)).toMatchInlineSnapshot(
+      `"    <Root>"`,
     );
-    expect(store).toMatchSnapshot('3: update to add direct');
-
-    expect(
-      printOwnersList(store.getOwnersListForElement(rootID)),
-    ).toMatchSnapshot('4: components owned by <Root>');
-
-    act(() =>
-      legacyRender(
-        <Root includeDirect={true} includeIndirect={false} />,
-        container,
-      ),
-    );
-    expect(store).toMatchSnapshot('5: update to remove indirect');
-
-    expect(
-      printOwnersList(store.getOwnersListForElement(rootID)),
-    ).toMatchSnapshot('6: components owned by <Root>');
-
-    act(() =>
-      legacyRender(
-        <Root includeDirect={false} includeIndirect={false} />,
-        container,
-      ),
-    );
-    expect(store).toMatchSnapshot('7: update to remove both');
-
-    expect(
-      printOwnersList(store.getOwnersListForElement(rootID)),
-    ).toMatchSnapshot('8: components owned by <Root>');
   });
 
   it('should show the proper owners list ordering after reordered children', () => {
@@ -154,20 +183,36 @@ describe('Store owners list', () => {
         : [<Leaf key="C" />, <Leaf key="B" />, <Leaf key="A" />];
     const Leaf = () => <div>Leaf</div>;
 
-    const container = document.createElement('div');
-    act(() => legacyRender(<Root ascending={true} />, container));
-    expect(store).toMatchSnapshot('1: mount (ascending)');
+    act(() => render(<Root ascending={true} />));
 
     const rootID = store.getElementIDAtIndex(0);
-    expect(
-      printOwnersList(store.getOwnersListForElement(rootID)),
-    ).toMatchSnapshot('2: components owned by <Root>');
+    expect(store).toMatchInlineSnapshot(`
+      [root]
+        ▾ <Root>
+            <Leaf key="A">
+            <Leaf key="B">
+            <Leaf key="C">
+    `);
+    expect(getFormattedOwnersList(rootID)).toMatchInlineSnapshot(`
+      "  ▾ <Root>
+            <Leaf key="A">
+            <Leaf key="B">
+            <Leaf key="C">"
+    `);
 
-    act(() => legacyRender(<Root ascending={false} />, container));
-    expect(store).toMatchSnapshot('3: update (descending)');
-
-    expect(
-      printOwnersList(store.getOwnersListForElement(rootID)),
-    ).toMatchSnapshot('4: components owned by <Root>');
+    act(() => render(<Root ascending={false} />));
+    expect(store).toMatchInlineSnapshot(`
+      [root]
+        ▾ <Root>
+            <Leaf key="C">
+            <Leaf key="B">
+            <Leaf key="A">
+    `);
+    expect(getFormattedOwnersList(rootID)).toMatchInlineSnapshot(`
+      "  ▾ <Root>
+            <Leaf key="C">
+            <Leaf key="B">
+            <Leaf key="A">"
+    `);
   });
 });

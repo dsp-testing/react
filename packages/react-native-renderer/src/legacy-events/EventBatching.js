@@ -1,18 +1,15 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  * @flow
  */
 
-import invariant from 'shared/invariant';
-import {rethrowCaughtError} from 'shared/ReactErrorUtils';
-
 import type {ReactSyntheticEvent} from './ReactSyntheticEventType';
 import accumulateInto from './accumulateInto';
 import forEachAccumulated from './forEachAccumulated';
-import {executeDispatchesInOrder} from './EventPluginUtils';
+import {executeDispatchesInOrder, rethrowCaughtError} from './EventPluginUtils';
 
 /**
  * Internal queue of events that have accumulated their dispatches and are
@@ -26,7 +23,7 @@ let eventQueue: ?(Array<ReactSyntheticEvent> | ReactSyntheticEvent) = null;
  * @param {?object} event Synthetic event to be dispatched.
  * @private
  */
-const executeDispatchesAndRelease = function(event: ReactSyntheticEvent) {
+function executeDispatchesAndRelease(event: ReactSyntheticEvent) {
   if (event) {
     executeDispatchesInOrder(event);
 
@@ -34,10 +31,11 @@ const executeDispatchesAndRelease = function(event: ReactSyntheticEvent) {
       event.constructor.release(event);
     }
   }
-};
-const executeDispatchesAndReleaseTopLevel = function(e) {
+}
+// $FlowFixMe[missing-local-annot]
+function executeDispatchesAndReleaseTopLevel(e) {
   return executeDispatchesAndRelease(e);
-};
+}
 
 export function runEventsInBatch(
   events: Array<ReactSyntheticEvent> | ReactSyntheticEvent | null,
@@ -56,11 +54,14 @@ export function runEventsInBatch(
   }
 
   forEachAccumulated(processingEventQueue, executeDispatchesAndReleaseTopLevel);
-  invariant(
-    !eventQueue,
-    'processEventQueue(): Additional events were enqueued while processing ' +
-      'an event queue. Support for this has not yet been implemented.',
-  );
+
+  if (eventQueue) {
+    throw new Error(
+      'processEventQueue(): Additional events were enqueued while processing ' +
+        'an event queue. Support for this has not yet been implemented.',
+    );
+  }
+
   // This would be a good time to rethrow if any of the event handlers threw.
   rethrowCaughtError();
 }

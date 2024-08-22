@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -8,38 +8,68 @@
  */
 
 import * as React from 'react';
-import {useCallback, useContext} from 'react';
+import {useCallback, useContext, useSyncExternalStore} from 'react';
 import {TreeDispatcherContext, TreeStateContext} from './TreeContext';
-import {BridgeContext, StoreContext} from '../context';
+import {BridgeContext, StoreContext, OptionsContext} from '../context';
 import Button from '../Button';
 import ButtonIcon from '../ButtonIcon';
+import Icon from '../Icon';
 import {ModalDialogContext} from '../ModalDialog';
-import ViewElementSourceContext from './ViewElementSourceContext';
 import Toggle from '../Toggle';
-import {ElementTypeSuspense} from 'react-devtools-shared/src/types';
+import {ElementTypeSuspense} from 'react-devtools-shared/src/frontend/types';
 import CannotSuspendWarningMessage from './CannotSuspendWarningMessage';
 import InspectedElementView from './InspectedElementView';
 import {InspectedElementContext} from './InspectedElementContext';
+import {getOpenInEditorURL} from '../../../utils';
+import {LOCAL_STORAGE_OPEN_IN_EDITOR_URL} from '../../../constants';
+import FetchFileWithCachingContext from './FetchFileWithCachingContext';
+import {symbolicateSourceWithCache} from 'react-devtools-shared/src/symbolicateSource';
+import OpenInEditorButton from './OpenInEditorButton';
+import InspectedElementViewSourceButton from './InspectedElementViewSourceButton';
+import Skeleton from './Skeleton';
 
 import styles from './InspectedElement.css';
 
-import type {InspectedElement} from './types';
+import type {Source} from 'react-devtools-shared/src/shared/types';
 
-export type Props = {||};
+export type Props = {};
 
 // TODO Make edits and deletes also use transition API!
 
-export default function InspectedElementWrapper(_: Props) {
+export default function InspectedElementWrapper(_: Props): React.Node {
   const {inspectedElementID} = useContext(TreeStateContext);
   const dispatch = useContext(TreeDispatcherContext);
-  const {canViewElementSourceFunction, viewElementSourceFunction} = useContext(
-    ViewElementSourceContext,
-  );
   const bridge = useContext(BridgeContext);
   const store = useContext(StoreContext);
+  const {
+    hideToggleErrorAction,
+    hideToggleSuspenseAction,
+    hideLogAction,
+    hideViewSourceAction,
+  } = useContext(OptionsContext);
   const {dispatch: modalDialogDispatch} = useContext(ModalDialogContext);
 
-  const {inspectedElement} = useContext(InspectedElementContext);
+  const {hookNames, inspectedElement, parseHookNames, toggleParseHookNames} =
+    useContext(InspectedElementContext);
+
+  const fetchFileWithCaching = useContext(FetchFileWithCachingContext);
+
+  const symbolicatedSourcePromise: null | Promise<Source | null> =
+    React.useMemo(() => {
+      if (inspectedElement == null) return null;
+      if (fetchFileWithCaching == null) return Promise.resolve(null);
+
+      const {source} = inspectedElement;
+      if (source == null) return Promise.resolve(null);
+
+      const {sourceURL, line, column} = source;
+      return symbolicateSourceWithCache(
+        fetchFileWithCaching,
+        sourceURL,
+        line,
+        column,
+      );
+    }, [inspectedElement]);
 
   const element =
     inspectedElementID !== null
@@ -50,11 +80,11 @@ export default function InspectedElementWrapper(_: Props) {
     if (element !== null && inspectedElementID !== null) {
       const rendererID = store.getRendererIDForElement(inspectedElementID);
       if (rendererID !== null) {
-        bridge.send('highlightNativeElement', {
+        bridge.send('highlightHostInstance', {
           displayName: element.displayName,
           hideAfterTimeout: true,
           id: inspectedElementID,
-          openNativeElementsPanel: true,
+          openBuiltinElementsPanel: true,
           rendererID,
           scrollIntoView: true,
         });
@@ -74,24 +104,6 @@ export default function InspectedElementWrapper(_: Props) {
     }
   }, [bridge, inspectedElementID, store]);
 
-  const viewSource = useCallback(() => {
-    if (viewElementSourceFunction != null && inspectedElement !== null) {
-      viewElementSourceFunction(
-        inspectedElement.id,
-        ((inspectedElement: any): InspectedElement),
-      );
-    }
-  }, [inspectedElement, viewElementSourceFunction]);
-
-  // In some cases (e.g. FB internal usage) the standalone shell might not be able to view the source.
-  // To detect this case, we defer to an injected helper function (if present).
-  const canViewSource =
-    inspectedElement !== null &&
-    inspectedElement.canViewSource &&
-    viewElementSourceFunction !== null &&
-    (canViewElementSourceFunction === null ||
-      canViewElementSourceFunction(inspectedElement));
-
   const isErrored = inspectedElement != null && inspectedElement.isErrored;
   const targetErrorBoundaryID =
     inspectedElement != null ? inspectedElement.targetErrorBoundaryID : null;
@@ -103,10 +115,26 @@ export default function InspectedElementWrapper(_: Props) {
     inspectedElement.state != null;
 
   const canToggleError =
-    inspectedElement != null && inspectedElement.canToggleError;
+    !hideToggleErrorAction &&
+    inspectedElement != null &&
+    inspectedElement.canToggleError;
 
   const canToggleSuspense =
-    inspectedElement != null && inspectedElement.canToggleSuspense;
+    !hideToggleSuspenseAction &&
+    inspectedElement != null &&
+    inspectedElement.canToggleSuspense;
+
+  const editorURL = useSyncExternalStore(
+    function subscribe(callback) {
+      window.addEventListener(LOCAL_STORAGE_OPEN_IN_EDITOR_URL, callback);
+      return function unsubscribe() {
+        window.removeEventListener(LOCAL_STORAGE_OPEN_IN_EDITOR_URL, callback);
+      };
+    },
+    function getState() {
+      return getOpenInEditorURL();
+    },
+  );
 
   const toggleErrored = useCallback(() => {
     if (inspectedElement == null || targetErrorBoundaryID == null) {
@@ -191,9 +219,25 @@ export default function InspectedElementWrapper(_: Props) {
     );
   }
 
+  let strictModeBadge = null;
+  if (element.isStrictModeNonCompliant) {
+    strictModeBadge = (
+      <a
+        className={styles.StrictModeNonCompliant}
+        href="https://react.dev/reference/react/StrictMode"
+        rel="noopener noreferrer"
+        target="_blank"
+        title="This component is not running in StrictMode. Click to learn more.">
+        <Icon type="strict-mode-non-compliant" />
+      </a>
+    );
+  }
+
   return (
     <div className={styles.InspectedElement}>
-      <div className={styles.TitleRow}>
+      <div className={styles.TitleRow} data-testname="InspectedElement-Title">
+        {strictModeBadge}
+
         {element.key && (
           <>
             <div className={styles.Key} title={`key "${element.key}"`}>
@@ -204,14 +248,32 @@ export default function InspectedElementWrapper(_: Props) {
         )}
 
         <div className={styles.SelectedComponentName}>
-          <div className={styles.Component} title={element.displayName}>
+          <div
+            className={
+              element.isStrictModeNonCompliant
+                ? `${styles.ComponentName} ${styles.StrictModeNonCompliantComponentName}`
+                : styles.ComponentName
+            }
+            title={element.displayName}>
             {element.displayName}
           </div>
         </div>
 
+        {!!editorURL &&
+          inspectedElement != null &&
+          inspectedElement.source != null &&
+          symbolicatedSourcePromise != null && (
+            <React.Suspense fallback={<Skeleton height={16} width={24} />}>
+              <OpenInEditorButton
+                editorURL={editorURL}
+                source={inspectedElement.source}
+                symbolicatedSourcePromise={symbolicatedSourcePromise}
+              />
+            </React.Suspense>
+          )}
+
         {canToggleError && (
           <Toggle
-            className={styles.IconButton}
             isChecked={isErrored}
             onChange={toggleErrored}
             title={
@@ -224,7 +286,6 @@ export default function InspectedElementWrapper(_: Props) {
         )}
         {canToggleSuspense && (
           <Toggle
-            className={styles.IconButton}
             isChecked={isSuspended}
             onChange={toggleSuspended}
             title={
@@ -235,40 +296,45 @@ export default function InspectedElementWrapper(_: Props) {
             <ButtonIcon type="suspend" />
           </Toggle>
         )}
-        {store.supportsNativeInspection && (
+        {store.supportsInspectMatchingDOMElement && (
           <Button
-            className={styles.IconButton}
             onClick={highlightElement}
             title="Inspect the matching DOM element">
             <ButtonIcon type="view-dom" />
           </Button>
         )}
-        <Button
-          className={styles.IconButton}
-          onClick={logElement}
-          title="Log this component data to the console">
-          <ButtonIcon type="log-data" />
-        </Button>
-        <Button
-          className={styles.IconButton}
-          disabled={!canViewSource}
-          onClick={viewSource}
-          title="View source for this element">
-          <ButtonIcon type="view-source" />
-        </Button>
+        {!hideLogAction && (
+          <Button
+            onClick={logElement}
+            title="Log this component data to the console">
+            <ButtonIcon type="log-data" />
+          </Button>
+        )}
+
+        {!hideViewSourceAction && (
+          <InspectedElementViewSourceButton
+            canViewSource={inspectedElement?.canViewSource}
+            source={inspectedElement?.source}
+            symbolicatedSourcePromise={symbolicatedSourcePromise}
+          />
+        )}
       </div>
 
       {inspectedElement === null && (
         <div className={styles.Loading}>Loading...</div>
       )}
 
-      {inspectedElement !== null && (
+      {inspectedElement !== null && symbolicatedSourcePromise != null && (
         <InspectedElementView
           key={
             inspectedElementID /* Force reset when selected Element changes */
           }
           element={element}
+          hookNames={hookNames}
           inspectedElement={inspectedElement}
+          parseHookNames={parseHookNames}
+          toggleParseHookNames={toggleParseHookNames}
+          symbolicatedSourcePromise={symbolicatedSourcePromise}
         />
       )}
     </div>

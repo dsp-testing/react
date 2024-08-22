@@ -5,7 +5,6 @@ const {createPatch} = require('diff');
 const {hashElement} = require('folder-hash');
 const {existsSync, readFileSync, writeFileSync} = require('fs');
 const {readJson, writeJson} = require('fs-extra');
-const http = require('request-promise-json');
 const logUpdate = require('log-update');
 const {join} = require('path');
 const createLogger = require('progress-estimator');
@@ -58,12 +57,6 @@ const extractCommitFromVersionNumber = version => {
   return match[2];
 };
 
-const getArtifactsList = async buildID => {
-  const jobArtifactsURL = `https://circleci.com/api/v1.1/project/github/facebook/react/${buildID}/artifacts`;
-  const jobArtifacts = await http.get(jobArtifactsURL, true);
-  return jobArtifacts;
-};
-
 const getBuildInfo = async () => {
   const cwd = join(__dirname, '..', '..');
 
@@ -72,16 +65,14 @@ const getBuildInfo = async () => {
   const branch = await execRead('git branch | grep \\* | cut -d " " -f2', {
     cwd,
   });
-  const commit = await execRead('git show -s --format=%h', {cwd});
+  const commit = await execRead('git show -s --no-show-signature --format=%h', {
+    cwd,
+  });
   const checksum = await getChecksumForCurrentRevision(cwd);
   const dateString = await getDateStringForCommit(commit);
   const version = isExperimental
     ? `0.0.0-experimental-${commit}-${dateString}`
     : `0.0.0-${commit}-${dateString}`;
-
-  // Only available for Circle CI builds.
-  // https://circleci.com/docs/2.0/env-vars/
-  const buildNumber = process.env.CIRCLE_BUILD_NUM;
 
   // React version is stored explicitly, separately for DevTools support.
   // See updateVersionsForNext() below for more info.
@@ -92,7 +83,7 @@ const getBuildInfo = async () => {
     ? `${packageJSON.version}-experimental-${commit}-${dateString}`
     : `${packageJSON.version}-${commit}-${dateString}`;
 
-  return {branch, buildNumber, checksum, commit, reactVersion, version};
+  return {branch, checksum, commit, reactVersion, version};
 };
 
 const getChecksumForCurrentRevision = async cwd => {
@@ -106,12 +97,12 @@ const getChecksumForCurrentRevision = async cwd => {
 
 const getDateStringForCommit = async commit => {
   let dateString = await execRead(
-    `git show -s --format=%cd --date=format:%Y%m%d ${commit}`
+    `git show -s --no-show-signature --format=%cd --date=format:%Y%m%d ${commit}`
   );
 
   // On CI environment, this string is wrapped with quotes '...'s
   if (dateString.startsWith("'")) {
-    dateString = dateString.substr(1, 8);
+    dateString = dateString.slice(1, 9);
   }
 
   return dateString;
@@ -125,7 +116,7 @@ const getCommitFromCurrentBuild = async () => {
   // This is important to make the build reproducible (e.g. by Mozilla reviewers).
   const buildInfoJSON = join(
     cwd,
-    'build2',
+    'build',
     'oss-experimental',
     'react',
     'build-info.json'
@@ -136,7 +127,7 @@ const getCommitFromCurrentBuild = async () => {
   } else {
     const packageJSON = join(
       cwd,
-      'build2',
+      'build',
       'oss-experimental',
       'react',
       'package.json'
@@ -268,7 +259,6 @@ module.exports = {
   addDefaultParamValue,
   confirm,
   execRead,
-  getArtifactsList,
   getBuildInfo,
   getChecksumForCurrentRevision,
   getCommitFromCurrentBuild,

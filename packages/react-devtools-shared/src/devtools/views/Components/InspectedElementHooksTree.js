@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -9,38 +9,70 @@
 
 import {copy} from 'clipboard-js';
 import * as React from 'react';
-import {useCallback, useContext, useRef, useState} from 'react';
+import {useCallback, useContext, useState} from 'react';
 import {BridgeContext, StoreContext} from '../context';
 import Button from '../Button';
 import ButtonIcon from '../ButtonIcon';
+import Toggle from '../Toggle';
 import ExpandCollapseToggle from './ExpandCollapseToggle';
 import KeyValue from './KeyValue';
 import {getMetaValueLabel, serializeHooksForCopy} from '../utils';
 import Store from '../../store';
 import styles from './InspectedElementHooksTree.css';
-import useContextMenu from '../../ContextMenu/useContextMenu';
 import {meta} from '../../../hydration';
-import {enableProfilerChangedHookIndices} from 'react-devtools-feature-flags';
+import {getHookSourceLocationKey} from 'react-devtools-shared/src/hookNamesCache';
+import HookNamesModuleLoaderContext from 'react-devtools-shared/src/devtools/views/Components/HookNamesModuleLoaderContext';
+import isArray from 'react-devtools-shared/src/isArray';
 
-import type {InspectedElement} from './types';
+import type {InspectedElement} from 'react-devtools-shared/src/frontend/types';
 import type {HooksNode, HooksTree} from 'react-debug-tools/src/ReactDebugHooks';
 import type {FrontendBridge} from 'react-devtools-shared/src/bridge';
-import type {Element} from 'react-devtools-shared/src/devtools/views/Components/types';
+import type {HookNames} from 'react-devtools-shared/src/frontend/types';
+import type {Element} from 'react-devtools-shared/src/frontend/types';
+import type {ToggleParseHookNames} from './InspectedElementContext';
 
-type HooksTreeViewProps = {|
+type HooksTreeViewProps = {
   bridge: FrontendBridge,
   element: Element,
+  hookNames: HookNames | null,
   inspectedElement: InspectedElement,
+  parseHookNames: boolean,
   store: Store,
-|};
+  toggleParseHookNames: ToggleParseHookNames,
+};
 
 export function InspectedElementHooksTree({
   bridge,
   element,
+  hookNames,
   inspectedElement,
+  parseHookNames,
   store,
-}: HooksTreeViewProps) {
+  toggleParseHookNames,
+}: HooksTreeViewProps): React.Node {
   const {hooks, id} = inspectedElement;
+
+  // Changing parseHookNames is done in a transition, because it suspends.
+  // This value is done outside of the transition, so the UI toggle feels responsive.
+  const [parseHookNamesOptimistic, setParseHookNamesOptimistic] =
+    useState(parseHookNames);
+  const handleChange = () => {
+    setParseHookNamesOptimistic(!parseHookNames);
+    toggleParseHookNames();
+  };
+
+  const hookNamesModuleLoader = useContext(HookNamesModuleLoaderContext);
+
+  const hookParsingFailed = parseHookNames && hookNames === null;
+
+  let toggleTitle;
+  if (hookParsingFailed) {
+    toggleTitle = 'Hook parsing failed';
+  } else if (parseHookNames) {
+    toggleTitle = 'Parsing hook names ...';
+  } else {
+    toggleTitle = 'Parse hook names (may be slow)';
+  }
 
   const handleCopy = () => copy(serializeHooksForCopy(hooks));
 
@@ -48,14 +80,27 @@ export function InspectedElementHooksTree({
     return null;
   } else {
     return (
-      <div className={styles.HooksTreeView}>
+      <div data-testname="InspectedElementHooksTree">
         <div className={styles.HeaderRow}>
           <div className={styles.Header}>hooks</div>
+          {typeof hookNamesModuleLoader === 'function' &&
+            (!parseHookNames || hookParsingFailed) && (
+              <Toggle
+                className={hookParsingFailed ? styles.ToggleError : null}
+                isChecked={parseHookNamesOptimistic}
+                isDisabled={parseHookNamesOptimistic || hookParsingFailed}
+                onChange={handleChange}
+                testName="LoadHookNamesButton"
+                title={toggleTitle}>
+                <ButtonIcon type="parse-hook-names" />
+              </Toggle>
+            )}
           <Button onClick={handleCopy} title="Copy to clipboard">
             <ButtonIcon type="copy" />
           </Button>
         </div>
         <InnerHooksTreeView
+          hookNames={hookNames}
           hooks={hooks}
           id={id}
           element={element}
@@ -67,27 +112,29 @@ export function InspectedElementHooksTree({
   }
 }
 
-type InnerHooksTreeViewProps = {|
+type InnerHooksTreeViewProps = {
   element: Element,
+  hookNames: HookNames | null,
   hooks: HooksTree,
   id: number,
   inspectedElement: InspectedElement,
   path: Array<string | number>,
-|};
+};
 
 export function InnerHooksTreeView({
   element,
+  hookNames,
   hooks,
   id,
   inspectedElement,
   path,
-}: InnerHooksTreeViewProps) {
-  // $FlowFixMe "Missing type annotation for U" whatever that means
+}: InnerHooksTreeViewProps): React.Node {
   return hooks.map((hook, index) => (
     <HookView
       key={index}
       element={element}
       hook={hooks[index]}
+      hookNames={hookNames}
       id={id}
       inspectedElement={inspectedElement}
       path={path.concat([index])}
@@ -95,20 +142,25 @@ export function InnerHooksTreeView({
   ));
 }
 
-type HookViewProps = {|
+type HookViewProps = {
   element: Element,
   hook: HooksNode,
+  hookNames: HookNames | null,
   id: number,
   inspectedElement: InspectedElement,
   path: Array<string | number>,
-|};
+};
 
-function HookView({element, hook, id, inspectedElement, path}: HookViewProps) {
-  const {
-    canEditHooks,
-    canEditHooksAndDeletePaths,
-    canEditHooksAndRenamePaths,
-  } = inspectedElement;
+function HookView({
+  element,
+  hook,
+  hookNames,
+  id,
+  inspectedElement,
+  path,
+}: HookViewProps) {
+  const {canEditHooks, canEditHooksAndDeletePaths, canEditHooksAndRenamePaths} =
+    inspectedElement;
   const {id: hookID, isStateEditable, subHooks, value} = hook;
 
   const isReadOnly = hookID == null || !isStateEditable;
@@ -127,22 +179,6 @@ function HookView({element, hook, id, inspectedElement, path}: HookViewProps) {
     [],
   );
 
-  const contextMenuTriggerRef = useRef(null);
-
-  useContextMenu({
-    data: {
-      path: ['hooks', ...path],
-      type:
-        hook !== null &&
-        typeof hook === 'object' &&
-        hook.hasOwnProperty(meta.type)
-          ? hook[(meta.type: any)]
-          : typeof value,
-    },
-    id: 'InspectedElement',
-    ref: contextMenuTriggerRef,
-  });
-
   if (hook.hasOwnProperty(meta.inspected)) {
     // This Hook is too deep and hasn't been hydrated.
     if (__DEV__) {
@@ -158,27 +194,40 @@ function HookView({element, hook, id, inspectedElement, path}: HookViewProps) {
   }
 
   // Certain hooks are not editable at all (as identified by react-debug-tools).
-  // Primative hook names (e.g. the "State" name for useState) are also never editable.
+  // Primitive hook names (e.g. the "State" name for useState) are also never editable.
+  // $FlowFixMe[missing-local-annot]
   const canRenamePathsAtDepth = depth => isStateEditable && depth > 1;
 
   const isCustomHook = subHooks.length > 0;
 
   let name = hook.name;
-  if (enableProfilerChangedHookIndices) {
-    if (!isCustomHook) {
-      name = (
-        <>
-          <span className={styles.PrimitiveHookNumber}>{hookID + 1}</span>
-          {name}
-        </>
-      );
-    }
+  if (hookID !== null) {
+    name = (
+      <>
+        <span className={styles.PrimitiveHookNumber}>{hookID + 1}</span>
+        {name}
+      </>
+    );
   }
 
   const type = typeof value;
 
   let displayValue;
   let isComplexDisplayValue = false;
+
+  const hookSource = hook.hookSource;
+  const hookName =
+    hookNames != null && hookSource != null
+      ? hookNames.get(getHookSourceLocationKey(hookSource))
+      : null;
+  const hookDisplayName = hookName ? (
+    <>
+      {name}
+      {!!hookName && <span className={styles.HookName}>({hookName})</span>}
+    </>
+  ) : (
+    name
+  );
 
   // Format data for display to mimic the props/state/context for now.
   if (type === 'string') {
@@ -191,7 +240,7 @@ function HookView({element, hook, id, inspectedElement, path}: HookViewProps) {
     displayValue = 'null';
   } else if (value === undefined) {
     displayValue = null;
-  } else if (Array.isArray(value)) {
+  } else if (isArray(value)) {
     isComplexDisplayValue = true;
     displayValue = 'Array';
   } else if (type === 'object') {
@@ -200,10 +249,11 @@ function HookView({element, hook, id, inspectedElement, path}: HookViewProps) {
   }
 
   if (isCustomHook) {
-    const subHooksView = Array.isArray(subHooks) ? (
+    const subHooksView = isArray(subHooks) ? (
       <InnerHooksTreeView
         element={element}
         hooks={subHooks}
+        hookNames={hookNames}
         id={id}
         inspectedElement={inspectedElement}
         path={path.concat(['subHooks'])}
@@ -219,6 +269,7 @@ function HookView({element, hook, id, inspectedElement, path}: HookViewProps) {
         depth={1}
         element={element}
         hookID={hookID}
+        hookName={hookName}
         inspectedElement={inspectedElement}
         name="subHooks"
         path={path.concat(['subHooks'])}
@@ -231,12 +282,12 @@ function HookView({element, hook, id, inspectedElement, path}: HookViewProps) {
     if (isComplexDisplayValue) {
       return (
         <div className={styles.Hook}>
-          <div ref={contextMenuTriggerRef} className={styles.NameValueRow}>
+          <div className={styles.NameValueRow}>
             <ExpandCollapseToggle isOpen={isOpen} setIsOpen={setIsOpen} />
             <span
               onClick={toggleIsOpen}
               className={name !== '' ? styles.Name : styles.NameAnonymous}>
-              {name || 'Anonymous'}
+              {hookDisplayName || 'Anonymous'}
             </span>
             <span className={styles.Value} onClick={toggleIsOpen}>
               {isOpen || getMetaValueLabel(value)}
@@ -253,6 +304,7 @@ function HookView({element, hook, id, inspectedElement, path}: HookViewProps) {
               depth={1}
               element={element}
               hookID={hookID}
+              hookName={hookName}
               inspectedElement={inspectedElement}
               name="DebugValue"
               path={path.concat(['value'])}
@@ -267,14 +319,13 @@ function HookView({element, hook, id, inspectedElement, path}: HookViewProps) {
     } else {
       return (
         <div className={styles.Hook}>
-          <div ref={contextMenuTriggerRef} className={styles.NameValueRow}>
+          <div className={styles.NameValueRow}>
             <ExpandCollapseToggle isOpen={isOpen} setIsOpen={setIsOpen} />
             <span
               onClick={toggleIsOpen}
               className={name !== '' ? styles.Name : styles.NameAnonymous}>
-              {name || 'Anonymous'}
+              {hookDisplayName || 'Anonymous'}
             </span>{' '}
-            {/* $FlowFixMe */}
             <span className={styles.Value} onClick={toggleIsOpen}>
               {displayValue}
             </span>
@@ -299,6 +350,7 @@ function HookView({element, hook, id, inspectedElement, path}: HookViewProps) {
             depth={1}
             element={element}
             hookID={hookID}
+            hookName={hookName}
             inspectedElement={inspectedElement}
             name={name}
             path={path.concat(['value'])}
@@ -320,9 +372,10 @@ function HookView({element, hook, id, inspectedElement, path}: HookViewProps) {
             depth={1}
             element={element}
             hookID={hookID}
+            hookName={hookName}
             inspectedElement={inspectedElement}
             name={name}
-            path={[]}
+            path={path.concat(['value'])}
             pathRoot="hooks"
             store={store}
             value={value}
@@ -333,5 +386,6 @@ function HookView({element, hook, id, inspectedElement, path}: HookViewProps) {
   }
 }
 
-// $FlowFixMe
-export default React.memo(InspectedElementHooksTree);
+export default (React.memo(
+  InspectedElementHooksTree,
+): React.ComponentType<HookViewProps>);

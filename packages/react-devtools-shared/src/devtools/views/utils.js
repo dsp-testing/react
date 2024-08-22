@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -10,8 +10,12 @@
 import escapeStringRegExp from 'escape-string-regexp';
 import {meta} from '../../hydration';
 import {formatDataForPreview} from '../../utils';
+import isArray from 'react-devtools-shared/src/isArray';
 
 import type {HooksTree} from 'react-debug-tools/src/ReactDebugHooks';
+
+// $FlowFixMe[method-unbinding]
+const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 export function alphaSortEntries(
   entryA: [string, mixed],
@@ -19,8 +23,8 @@ export function alphaSortEntries(
 ): number {
   const a = entryA[0];
   const b = entryB[0];
-  if ('' + +a === a) {
-    if ('' + +b !== b) {
+  if (String(+a) === a) {
+    if (String(+b) !== b) {
       return -1;
     }
     return +a < +b ? -1 : 1;
@@ -32,10 +36,10 @@ export function createRegExp(string: string): RegExp {
   // Allow /regex/ syntax with optional last /
   if (string[0] === '/') {
     // Cut off first slash
-    string = string.substring(1);
+    string = string.slice(1);
     // Cut off last slash, but only if it's there
     if (string[string.length - 1] === '/') {
-      string = string.substring(0, string.length - 1);
+      string = string.slice(0, string.length - 1);
     }
     try {
       return new RegExp(string, 'i');
@@ -107,7 +111,7 @@ function sanitize(data: Object): void {
     if (value && value[meta.type]) {
       data[key] = getMetaValueLabel(value);
     } else if (value != null) {
-      if (Array.isArray(value)) {
+      if (isArray(value)) {
         sanitize(value);
       } else if (typeof value === 'object') {
         sanitize(value);
@@ -129,8 +133,8 @@ export function serializeDataForCopy(props: Object): string {
 }
 
 export function serializeHooksForCopy(hooks: HooksTree | null): string {
-  // $FlowFixMe "HooksTree is not an object"
-  const cloned = Object.assign([], hooks);
+  // $FlowFixMe[not-an-object] "HooksTree is not an object"
+  const cloned = Object.assign(([]: Array<any>), hooks);
 
   const queue = [...cloned];
 
@@ -182,9 +186,9 @@ export function truncateText(text: string, maxLength: number): string {
   const {length} = text;
   if (length > maxLength) {
     return (
-      text.substr(0, Math.floor(maxLength / 2)) +
+      text.slice(0, Math.floor(maxLength / 2)) +
       '…' +
-      text.substr(length - Math.ceil(maxLength / 2) - 1)
+      text.slice(length - Math.ceil(maxLength / 2) - 1)
     );
   } else {
     return text;

@@ -22,11 +22,6 @@
   user-select: none;
 }
 
-.ScrollAnchor {
-  height: 100%;
-  width: 0;
-}
-
 .SelectedElement {
   background-color: var(--color-background-selected);
   color: var(--color-text-selected);
@@ -37,6 +32,7 @@
   --color-component-badge-background: var(
     --color-component-badge-background-inverted
   );
+  --color-forget-badge-background: var(--color-forget-badge-background-inverted);
   --color-component-badge-count: var(--color-component-badge-count-inverted);
   --color-attribute-name: var(--color-attribute-name-inverted);
   --color-attribute-value: var(--color-attribute-value-inverted);
@@ -70,12 +66,14 @@
   color: var(--color-expand-collapse-toggle);
 }
 
-.Badge {
+.BadgesBlock {
   margin-left: 0.25rem;
 }
 
 .ErrorIcon,
 .ErrorIconContrast,
+.StrictMode,
+.StrictModeContrast,
 .WarningIcon,
 .WarningIconContrast {
   height: 0.75rem !important;
@@ -85,9 +83,15 @@
 .ErrorIcon {
   color: var(--color-console-error-icon);
 }
+.StrictMode {
+  color: var(--color-dimmer);
+}
 .WarningIcon {
   color: var(--color-console-warning-icon);
 }
 .ErrorIconContrast, .WarningIconContrast {
   color: var(--color-component-name);
+}
+.StrictModeContrast {
+  color: var(--color-text);
 }
